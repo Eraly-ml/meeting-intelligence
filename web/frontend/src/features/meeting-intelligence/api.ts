@@ -49,6 +49,7 @@ export interface MeetingResult {
   protocol: {
     metadata: { title: string; language: string; participants: string[]; duration_seconds?: number | null }
     executive_summary: string[]
+    executive_summary_sources?: Array<{ item_id: string; evidence: Evidence }>
     topics: Array<ProtocolItem & { title: string }>
     decisions: ProtocolItem[]
     open_questions: ProtocolItem[]

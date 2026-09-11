@@ -192,6 +192,8 @@
 .mi-footer > span { display: flex; align-items: center; gap: 6px; }
 .mi-footer svg { width: 10px; height: 10px; }
 .mi-footer span > span { margin: 0 3px; opacity: .5; }
+.mi-summary-item + .mi-summary-item { margin-top: 14px; }
+.mi-summary-item > p { font-size: 12px; line-height: 1.85; }
 .mi-browser-panel { border: 1px solid var(--mi-border); border-radius: 13px; background: var(--mi-bg); margin-bottom: 23px; overflow: hidden; }
 .mi-browser-heading { display: flex; gap: 14px; align-items: center; padding: 20px 23px; }
 .mi-browser-icon { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; background: var(--mi-soft); color: var(--mi-accent); }

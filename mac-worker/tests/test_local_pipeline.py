@@ -96,3 +96,50 @@ def test_fabricated_dates_in_text_are_removed_and_flagged():
     assert '2024-05-27' not in result.model_dump_json()
     assert result.topics[0].review_status == 'needs_review'
     assert result.action_items[0].assignee is None
+
+
+@pytest.mark.parametrize('semantic', [True, False])
+def test_unsolicited_model_summary_cannot_bypass_fact_review(tmp_path, semantic):
+    from meeting_worker.schemas import ProtocolItem
+    settings = config(tmp_path, semantic_verification=semantic)
+    transcript = Transcript(model='fixture', raw_text='Timur will send the report Monday. We decided to postpone the launch until the report is complete.', segments=[
+        TranscriptSegment(id='s1', text='Timur will send the report Monday.'),
+        TranscriptSegment(id='s2', text='We decided to postpone the launch until the report is complete.')])
+    report = MeetingProtocol(metadata=MeetingMetadata(),
+        executive_summary=['All other proposed tasks were explicitly cancelled or superseded.'],
+        decisions=[ProtocolItem(id='d', text='Postpone the launch until the report is complete.', evidence=Evidence(segment_ids=['s2']))],
+        action_items=[ActionItem(id='a', task='Send report', assignee='Timur', deadline_text='Monday', evidence=Evidence(segment_ids=['s1']))])
+    reviewed = []
+
+    def handler(request):
+        payload = json.loads(request.content)
+        if request.url.path == '/api/show':
+            return httpx.Response(200, json={'model_info': {'x': 1}, 'details': {'format': 'gguf'}})
+        if 'verdicts' in payload['format']['properties']:
+            claims = json.loads(payload['messages'][1]['content'])
+            reviewed.extend(claims)
+            return httpx.Response(200, json={'done': True, 'message': {'content': json.dumps({'verdicts': [
+                {'id': claim['id'], 'supported': True} for claim in claims]})}})
+        assert 'executive_summary' not in payload['format']['properties']
+        assert 'executive_summary_sources' not in payload['format']['properties']
+        return httpx.Response(200, json={'done': True, 'message': {'content': report.model_dump_json()}})
+
+    original = httpx.Client
+    with patch('meeting_worker.protocol.httpx.Client', lambda **kwargs: original(**kwargs, transport=httpx.MockTransport(handler))):
+        result = call_ollama(transcript, JobManifest(meeting_id='fixture'), settings)
+    assert not any('cancelled' in line or 'superseded' in line for line in result.executive_summary)
+    if semantic:
+        assert {claim['kind'] for claim in reviewed} == {'decision', 'action'}
+        assert result.executive_summary == ['Postpone the launch until the report is complete.', 'Send report · Owner: Timur · Due: Monday']
+        assert result.executive_summary_sources[0].evidence.segment_ids == ['s2']
+    else:
+        assert not reviewed and result.executive_summary == []
+        assert result.executive_summary_sources == []
+
+
+def test_previous_protocol_never_feeds_unchecked_summary_back_into_reconciliation():
+    from meeting_worker.protocol import _messages
+    previous = MeetingProtocol(metadata=MeetingMetadata(), executive_summary=['All other tasks are cancelled.'])
+    payload = json.loads(_messages([TranscriptSegment(id='s1', text='One explicit action.')], JobManifest(meeting_id='fixture'), previous)[1]['content'])
+    assert 'executive_summary' not in payload['previous_protocol']
+    assert 'executive_summary_sources' not in payload['previous_protocol']

@@ -74,12 +74,19 @@ class MeetingMetadata(BaseModel):
     participants: list[str] = Field(default_factory=list)
 
 
+class SummarySource(BaseModel):
+    """Provenance for the string at the same index in executive_summary."""
+    item_id: str
+    evidence: Evidence
+
+
 class MeetingProtocol(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: str = "1.0"
     metadata: MeetingMetadata
     executive_summary: list[str] = Field(default_factory=list, max_length=5)
+    executive_summary_sources: list[SummarySource] = Field(default_factory=list, max_length=5)
     topics: list[Topic] = Field(default_factory=list)
     decisions: list[ProtocolItem] = Field(default_factory=list)
     open_questions: list[ProtocolItem] = Field(default_factory=list)

@@ -110,6 +110,16 @@ also exposed an unsupported executive-summary cancellation claim and a missing
 explicit launch decision. A successful pipeline/export test is not evidence of
 complete report accuracy.
 
+That report-quality failure prompted a separate fix: the worker discards model
+summary prose and derives each summary line from a supported structured item
+after semantic verification, with aligned item IDs and evidence. A schema
+clarification distinguishes explicit agreed decisions from topic headings.
+The worker suite now has **23 passing tests**, including unsupported-summary
+and reconciliation regressions. A direct real-Qwen rerun recovered the launch
+postponement as a decision, retained the Timur/Monday task, and produced exactly
+those two supported summary facts. This fixes the observed fixture failure;
+it does not establish perfect classification or accuracy on other meetings.
+
 The supplied Google Meet link loaded on the Radxa and accepted the disclosed
 participant name at the pre-join screen, with microphone and camera disabled.
 Google rejected two guest attempts with “You can't join this video call” and
@@ -118,6 +128,12 @@ endpoint, including a retry after the user confirmed the host was present and
 guest access was enabled. The participant was **not admitted** and
 no real meeting audio was captured. A host/account access change is still
 needed for that acceptance test. Zoom and Teams joins have not been tested.
+
+The user's normal Chrome session still showed `ERR_ADDRESS_UNREACHABLE` despite
+its stored permission entry appearing allowed. It was running an older Chrome
+version than the installed browser used by the isolated tests. The station was
+then opened in Safari, and the user confirmed that its login page loaded. No
+macOS privacy permissions were changed.
 
 ## Carelink preservation
 
