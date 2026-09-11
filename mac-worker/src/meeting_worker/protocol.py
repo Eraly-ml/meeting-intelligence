@@ -35,6 +35,14 @@ task or due date. Preserve all still-valid explicit decisions when reconciling l
 Do not infer a currency, unit, identity or percentage relationship that was not stated.
 Discussed subjects belong in topics even when no decision or action was agreed.'''
 
+SYSTEM_PROMPT += ''' Keep each deadline attached only to its own task: a date for designs
+does not also date a questionnaire. Not today does not imply tomorrow. A plan to work on
+something today is not a promise to finish it today. Carry the speaker's explicitly introduced
+name into their continuing commitments, citing both the introduction and the commitment.
+Cite surrounding replies needed to establish agreement, ownership and pronoun references.
+Consolidate repeated descriptions of one task and retain explicit conditional commitments
+as conditional. Report ongoing work separately from new group decisions.'''
+
 
 def compact(value):
     return json.dumps(value, ensure_ascii=False, separators=(',', ':'))
@@ -205,6 +213,8 @@ deadlines or agreements. Omit unclear details rather than guessing. Avoid repeat
 profanity, duplicated phrases or generic filler. Do not manufacture formal tasks from jokes.
 Do not infer events, motives, causation, a conflict, or an interrupted meeting merely because
 the transcript is fragmented. Recognition errors are not proof of technical problems in the call.
+Do not broaden a task's deadline to all deliverables. Not today does not mean tomorrow;
+an unspecified future release date must remain unspecified. Preserve conditional language.
 Every summary sentence and topic must cite supporting transcript segment ids. Synthesize meaning
 across passages; do not merely copy action rows. Use the requested output language, including
 all titles and sentences, and return its ISO code in language. For auto/same, use the language
