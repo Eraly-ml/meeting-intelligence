@@ -151,6 +151,14 @@ In the station interface, choose **Join call**, paste the link, and select **Joi
 
 When the call ends, the controller finalizes the WAV and the station imports it automatically, including when the UI is closed. **Leave & process** ends it earlier. A failed join is retained as a failed capture and does not generate a normal meeting report. Interrupted imports are retried in the background. The join timeout is five minutes; capture is bounded to four hours or the configured size limit and one browser call at a time.
 
+Watch the **Incoming audio level** meter: **Audio received** means nonzero sound
+was measured in the saved PCM. Quiet warnings can also mean nobody is speaking;
+they do not by themselves establish a connection failure. A stalled-data warning
+means the file stopped growing. Entirely silent recordings are retained with an
+error instead of being submitted as successful captures. The original recording
+includes the waiting room before admission, so its beginning can be silent; use
+transcript timestamps to jump to speech after processing.
+
 Automatic entry and admission were observed on the supplied Google Meet link:
 the participant name was visible, the call had a Leave call control, and the
 camera/microphone controls offered to turn them on, confirming they were off.
@@ -167,7 +175,7 @@ These steps are the acceptance procedure; they are not a claim that every step h
 2. Upload actual MP3, WAV and M4A recordings, including Russian, Kazakh, English and mixed speech. Compare the transcript and speaker changes with the source; record model, duration, latency and errors.
 3. Stop the Mac worker, upload another source to the board, and confirm it stays in the archive. Restart the worker and verify processing continues without duplicate jobs.
 4. If a board microphone is attached, record and stop a real session. Check the complete archived audio and a transcript from the resulting job.
-5. Open the transcript, follow evidence links, load audio once, and seek from a timestamp. Check anonymous speaker labels rather than assuming they are identities.
+5. Open the transcript, follow evidence links, confirm the recording loads automatically, and seek from a timestamp. Check anonymous speaker labels rather than assuming they are identities.
 6. Download JSON, CSV, PDF and ICS. Confirm Cyrillic/Kazakh glyphs, action-item columns, owners/deadlines, review flags and source-checked calendar tasks. Completed results and exports should remain available when the Mac is offline.
 7. Restart services during queued work and test explicit retry after failed inference. A completed UI job must have all exports durably cached on the board.
 8. Disconnect WAN while retaining the office LAN and repeat a complete audio-to-report run. Inspect browser/runtime traffic for external requests. **A full WAN-disconnected validation has not yet been established.**

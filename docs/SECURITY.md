@@ -100,7 +100,7 @@ exports passed in Chrome with normal certificate verification. A complete
 TLS, local inference and encrypted archival. A lock/unlock test confirmed that
 services do not start while locked, a wrong vault password is rejected, the Mac
 link reconnects and the cached PDF survives byte-for-byte. Retired station tokens
-are rejected. All 102 worker/station tests pass after the startup/join changes.
+are rejected. All 106 worker/station tests pass after the startup/join/audio changes.
 An actual board reboot recovered HTTPS, the encrypted archive, the Mac connection
 and the browser without intervention in 80.745 seconds from the reboot request.
 The archived PDF remained byte-identical.

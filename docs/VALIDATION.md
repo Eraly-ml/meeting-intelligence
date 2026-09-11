@@ -3,13 +3,44 @@
 Tested on a Radxa Cubie A7A with 6 GB RAM and Debian 11, connected over the
 private LAN to an Apple M5 Mac with 16 GB unified memory.
 
-The current security/startup revision passes **102 worker/station tests**, the
+The current security/startup/audio revision passes **106 worker/station tests**, the
 frontend production build, targeted ESLint, browser join fixtures and deployed
 Chrome checks for automatic audio loading, exports, session-only tokens and the
 encrypted viewer. An actual Cubie reboot recovered the archive, HTTPS website,
 Mac worker link and browser automatically in **80.745 seconds**, preserving a
 downloaded PDF byte-for-byte. See [SECURITY.md](SECURITY.md), [ACCURACY.md](ACCURACY.md)
 and [REQUIREMENTS.md](REQUIREMENTS.md) for current boundaries and quality gaps.
+
+## Silent Google Meet capture fixed
+
+The station was admitted but Chromium's remote audio elements were paused. One
+149-second WAV was entirely zero PCM; another contained 290 seconds of silence
+before playback resumed. A growing recording file had incorrectly looked healthy.
+
+The isolated Chromium now permits unattended playback, the CDP interaction uses
+a user gesture, and the join loop resumes paused incoming audio elements. A fresh
+automatic join showed live, enabled remote audio tracks with `paused: false`.
+PulseAudio showed Chromium playing unmuted into the same sink that FFmpeg records.
+The saved verification WAV lasts **484.6873125 seconds** and contains nonzero PCM
+in **446 one-second windows**, beginning at second 39 after admission. Its SHA-256
+is `d7d5936a3e5033f1a40cbad92297a78f6a64292d97a548ea68e0d7e7c31fecb0`.
+This verifies actual Meet audio capture; it does not measure transcription WER.
+
+Deployed Chrome decoded and played that same SHA-256-matched recording through
+the app's player; the 60–70 second window had normalized RMS 0.0621 and peak
+0.7883. The new join's meter showed **Audio received**, backed by live PCM around
+−24 dBFS. The completed local pipeline produced 120 timestamped segments; many
+remain flagged for review, so this is not a transcription-accuracy acceptance.
+The earlier all-zero capture is now marked failed; its source is unchanged and
+the prior database state is backed up inside the encrypted vault.
+
+The status endpoint and UI now measure recent saved PCM, distinguish quiet audio
+from stalled writes, and show an incoming-audio meter. FFmpeg flushes packets so
+buffering does not hide current levels. Completely zero recordings are preserved
+as failed captures and are not automatically submitted for a normal report.
+Regression checks cover silence, sound, quiet periods, stopped writes and archival
+of a failed capture without sending it to inference. Private evidence remains in
+`.local/security/audio-fix/`.
 
 The measurements below are historical runs before this revision. In particular,
 the old HTTP fallback and ignored-certificate test setup are no longer the active

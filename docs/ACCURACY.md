@@ -43,6 +43,13 @@ overlapping voices and Kazakh/Russian code-switching.
 
 ## Failure found in an actual recording
 
+A separate capture defect was also found: Chromium had paused incoming Google
+Meet audio while FFmpeg kept saving silence. That playback path is fixed, and a
+new automatic join produced sustained nonzero audio in the archived WAV. See
+[the capture validation](VALIDATION.md#silent-google-meet-capture-fixed). Audio
+levels establish captured sound, not correct words or speaker identities. Missing
+speech in earlier silent intervals cannot be reconstructed by changing ASR models.
+
 An archived 152.289-second browser recording had an empty structured protocol
 and a one-page PDF with only about 130 extracted characters. Its old transcript
 contained an extended recognition loop. That export defect was confirmed and

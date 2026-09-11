@@ -70,6 +70,15 @@ verification; these are reported instead of bypassed. The join timeout is five
 minutes. Chromium permits unattended audio playback in its isolated profile;
 this setting does not affect the employee's browser.
 
+The launch flag and CDP user gesture follow Chrome's documented
+[autoplay behavior](https://developer.chrome.com/blog/autoplay/). The interaction
+loop resumes paused incoming audio without enabling the station microphone.
+Status measures recent saved PCM and file growth separately, exposes an audio
+meter and warns about quiet or stalled capture. FFmpeg uses
+[`flush_packets=1`](https://ffmpeg.org/ffmpeg-formats.html#Format-Options) to keep
+these measurements current. A finalized all-zero WAV is retained as an error,
+not sent to the Mac as a successful recording.
+
 ## Verification and rollback
 
 Check `systemctl status meeting-browser`, its journal, loopback-only listeners,
