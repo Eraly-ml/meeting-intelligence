@@ -10,7 +10,7 @@ This runbook describes the actual systemd deployment on the existing Debian 11 b
 | Browser address (private demo LAN) | `http://192.168.8.57/meeting-intelligence` |
 | HTTPS browser address | `https://radxa-cubie-a7a.local/meeting-intelligence` |
 | Radxa LAN address | `192.168.8.57` |
-| Mac worker | MacBook Air M5, 16 GB unified memory, `192.168.8.82:8765` |
+| Mac worker | MacBook Air M5, 16 GB unified memory, `192.168.8.84:8765` |
 | Ollama | Mac loopback, `127.0.0.1:11434` |
 | Station bridge | Radxa loopback, `127.0.0.1:8766` |
 | Go/embedded frontend | Radxa loopback, `127.0.0.1:8081` |
@@ -102,7 +102,7 @@ sudo /path/to/staged-release/deploy/radxa/install-station.sh /path/to/staged-rel
 | `/var/lib/meeting-intelligence` | Scriberr account database and local session state |
 | `/var/lib/meeting-station` | Original sources, SQLite queue, results and exports |
 
-`scriberr.env` must set `MI_STATION_MODE=true`, bind the Go service to `127.0.0.1:8081`, retain `SECURE_COOKIES=true`, and set `ALLOWED_ORIGINS=https://radxa-cubie-a7a.local,http://192.168.8.57`. `station.env` must bind to `127.0.0.1:8766`, use `/var/lib/meeting-station`, and set `MI_STATION_WORKER_URL=http://192.168.8.82:8765`. `MI_STATION_WORKER_TOKEN` matches the Mac's `MI_API_TOKEN`; `MI_STATION_TOKEN` is a different random token shared with station browsers. Keep the actual values in the private environment files, not in this repository or URLs.
+`scriberr.env` must set `MI_STATION_MODE=true`, bind the Go service to `127.0.0.1:8081`, retain `SECURE_COOKIES=true`, and set `ALLOWED_ORIGINS=https://radxa-cubie-a7a.local,http://192.168.8.57`. `station.env` must bind to `127.0.0.1:8766`, use `/var/lib/meeting-station`, and set `MI_STATION_WORKER_URL=http://192.168.8.84:8765`. `MI_STATION_WORKER_TOKEN` matches the Mac's `MI_API_TOKEN`; `MI_STATION_TOKEN` is a different random token shared with station browsers. Keep the actual values in the private environment files, not in this repository or URLs. Update `MI_BIND_HOST` and `MI_STATION_WORKER_URL` together if DHCP assigns the Mac a different address.
 
 The service units are [meeting-station.service](../deploy/radxa/meeting-station.service) and [scriberr-station.service](../deploy/radxa/scriberr-station.service). Both run as `meeting-station` with separate state directories. The bridge user also belongs to `audio` for an attached ALSA microphone. Recording availability requires `arecord` and an actual capture device; selecting Record in the UI starts the Radxa microphone, not the browser microphone.
 

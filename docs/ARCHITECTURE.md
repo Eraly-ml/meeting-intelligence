@@ -24,7 +24,7 @@ http://192.168.8.57
                          │
                          │ private LAN · separate worker Bearer token
                          ▼
-MacBook Air M5 · 192.168.8.82:8765
+MacBook Air M5 · 192.168.8.84:8765
        Python worker · one inference job at a time
               ├─ ffmpeg → local ASR → optional speaker diarization
               ├─ Qwen → chronological protocol reconciliation

@@ -5,9 +5,8 @@ import './station-shell.css'
 export function StationBrand({ compact = false }: { compact?: boolean }) {
   return <span className="ms-brand">
     <svg className="ms-brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-      <rect width="40" height="40" rx="12" fill="currentColor" />
+      <rect width="40" height="40" rx="4" fill="currentColor" />
       <path d="M11 18v5m6-11v17m6-14v11m6-7v3" stroke="var(--ms-mark-ink, #fff)" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="29" cy="11" r="2" fill="var(--ms-mark-ink, #fff)" />
     </svg>
     {!compact && <span className="ms-brand-name">Meeting<span>Station</span></span>}
   </span>

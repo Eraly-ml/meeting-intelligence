@@ -6,7 +6,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Upload, Mic, Settings, LogOut, Home, Plus, Grip, Zap, Youtube, Video, Users, MonitorSpeaker, Library, BrainCircuit } from "lucide-react";
+import { Upload, Mic, Settings, LogOut, Home, Plus, Grip, Zap, Youtube, Video, Users, MonitorSpeaker, BrainCircuit } from "lucide-react";
 import { ScriberrLogo } from "./ScriberrLogo";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { AudioRecorder } from "./AudioRecorder";
@@ -44,9 +44,11 @@ function StationHeader() {
 	};
 	return <header className="ms-header">
 		<div className="ms-header-inner">
-			<button type="button" className="ms-brand-link" onClick={() => navigate('/meeting-intelligence')} aria-label="Meeting Station home"><StationBrand /></button>
+			<div className="ms-header-left">
+				<button type="button" className="ms-brand-link" onClick={() => navigate('/meeting-intelligence')} aria-label="Meeting Station home"><StationBrand /></button>
+				<button type="button" className="ms-header-nav is-active" onClick={() => navigate('/meeting-intelligence')}>Meetings</button>
+			</div>
 			<div className="ms-header-right">
-				<button type="button" className="ms-header-archive" onClick={() => navigate('/meeting-intelligence')}><Library />Meeting archive</button>
 				<StationThemeButton />
 				<button type="button" className="ms-icon-button" onClick={handleLogout} aria-label="Log out" title="Log out"><LogOut /></button>
 			</div>
