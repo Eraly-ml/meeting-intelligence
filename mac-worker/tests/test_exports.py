@@ -1,5 +1,6 @@
 import csv
 import json
+import pytest
 
 from meeting_worker.exports import export_csv, export_ics, export_json, export_pdf
 from meeting_worker.schemas import (
@@ -122,3 +123,20 @@ def test_no_speech_pdf_is_explicit_instead_of_exporting_empty_headings(tmp_path)
     text = '\n'.join(page.extract_text() for page in PdfReader(path).pages)
     assert 'No speech was recognized.' in text
     assert 'No structured meeting findings were extracted.' in text
+
+
+@pytest.mark.parametrize(('language', 'heading'), [('ru', 'Краткий обзор'), ('kk', 'Қысқаша шолу')])
+def test_report_language_localizes_pdf_with_summary_evidence(tmp_path, language, heading):
+    from pypdf import PdfReader
+    from meeting_worker.schemas import SummarySource
+    protocol, transcript = fixture_data()
+    protocol.metadata.report_language = language
+    protocol.executive_summary_sources = [SummarySource(item_id='summary_001',
+        evidence=Evidence(segment_ids=['seg_00001'], quote=transcript.raw_text), audio_warning=True)]
+    path = tmp_path / 'localized.pdf'
+    export_pdf(path, protocol, transcript=transcript)
+    text = '\n'.join(page.extract_text() for page in PdfReader(path).pages)
+    assert heading in text
+    assert 'Executive summary' not in text
+    assert 'seg_00001' in text and transcript.raw_text in text
+    assert '\u0000' not in text

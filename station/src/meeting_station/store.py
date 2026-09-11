@@ -159,6 +159,9 @@ class Store:
             if payload["stage"] == "cancelled":
                 return
             payload.update(stage="completed", error_code=None, error_message=None, result_path=job_id + "/result.json")
+            generated_title = result.get('protocol', {}).get('metadata', {}).get('title')
+            if isinstance(generated_title, str) and generated_title.strip():
+                payload['station']['generated_title'] = generated_title.strip()[:200]
             result["job"] = payload
             result["exports"] = {format_name: "/v1/jobs/{}/export/{}".format(job_id, format_name) for format_name in ("json", "csv", "pdf", "ics")}
             self._write(db, row, payload, result=json.dumps(result, ensure_ascii=False, allow_nan=False), action=None)

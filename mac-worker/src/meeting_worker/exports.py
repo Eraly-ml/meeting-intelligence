@@ -15,6 +15,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 from .schemas import JobResult, MeetingProtocol, Transcript
+from .report_language import translator
 
 
 def _safe_csv(value: object) -> str:
@@ -36,14 +37,14 @@ def export_csv(path: Path, protocol: MeetingProtocol) -> None:
         writer = csv.writer(stream)
         writer.writerow([
             "assignee", "task", "deadline", "deadline_text", "priority",
-            "speaker", "start", "end", "quote", "source_check", "review_status",
+            "speaker", "start", "end", "quote", "source_check", "review_status", "audio_warning",
         ])
         for item in protocol.action_items:
             writer.writerow([_safe_csv(value) for value in (
                 item.assignee, item.task, item.deadline_date, item.deadline_text,
                 item.priority, item.evidence.speaker, item.evidence.start,
                 item.evidence.end, item.evidence.quote, item.source_check,
-                item.review_status,
+                item.review_status, item.audio_warning,
             )])
 
 
@@ -58,6 +59,8 @@ def export_ics(path: Path, protocol: MeetingProtocol) -> None:
     priorities = {"urgent": 1, "high": 3, "medium": 5, "low": 7, "not_specified": 0}
     for item in protocol.action_items:
         if item.source_check != "passed" or item.review_status not in {"unreviewed", "human_confirmed"}:
+            continue
+        if item.audio_warning and item.review_status != 'human_confirmed':
             continue
         identity = "\0".join((protocol.metadata.title, str(protocol.metadata.meeting_date or ""), item.id, item.task))
         uid = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24] + "@meeting-station.local"
@@ -98,46 +101,50 @@ def _ics_fold(line: str) -> str:
 
 
 def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = None, transcript: Transcript | None = None) -> None:
+    language = protocol.metadata.report_language or protocol.metadata.language
+    t = translator(language)
     font_name = _pdf_font(font_path)
     styles = getSampleStyleSheet()
     for style in styles.byName.values():
         style.fontName = font_name
     story = [Paragraph(escape(protocol.metadata.title), styles["Title"]), Spacer(1, 12)]
     if protocol.metadata.meeting_date:
-        story.append(Paragraph("Meeting date: " + protocol.metadata.meeting_date.isoformat(), styles["BodyText"]))
+        story.append(Paragraph(t("Meeting date: ") + protocol.metadata.meeting_date.isoformat(), styles["BodyText"]))
     if protocol.metadata.timezone:
-        story.append(Paragraph("Timezone: " + escape(protocol.metadata.timezone), styles["BodyText"]))
+        story.append(Paragraph(t("Timezone: ") + escape(protocol.metadata.timezone), styles["BodyText"]))
     findings = protocol.decisions + protocol.topics + protocol.open_questions + protocol.action_items + protocol.risks
-    if not findings:
-        story.append(Paragraph("Report needs review", styles["Heading2"]))
-        story.append(Paragraph("No structured meeting findings were extracted. This is not a complete meeting protocol. Check the transcript and original recording before relying on this report.", styles["BodyText"]))
+    if not findings and not protocol.executive_summary:
+        story.append(Paragraph(t("Report needs review"), styles["Heading2"]))
+        story.append(Paragraph(t("No structured meeting findings were extracted. This is not a complete meeting protocol. Check the transcript and original recording before relying on this report."), styles["BodyText"]))
     if transcript and transcript.warnings:
-        story.append(Paragraph("Transcription needs review", styles["Heading2"]))
+        story.append(Paragraph(t("Transcription needs review"), styles["Heading2"]))
         story.extend(Paragraph(escape(warning), styles["BodyText"]) for warning in transcript.warnings)
-    if not findings:
-        _append_transcript(story, styles, transcript, new_page=False)
+    if not findings and not protocol.executive_summary:
+        _append_transcript(story, styles, transcript, new_page=False, language=language)
         SimpleDocTemplate(str(path), pagesize=A4, leftMargin=36, rightMargin=36).build(story)
         return
     sections = [
         ("Executive summary", protocol.executive_summary),
-        ("Decisions", [_qualified(item.text, item) for item in protocol.decisions]),
-        ("Topics and key points", [_qualified(item.title + ": " + item.text, item) for item in protocol.topics]),
-        ("Open questions", [_qualified(item.text, item) for item in protocol.open_questions]),
-        ("Risks", [_qualified(item.text, item) for item in protocol.risks]),
+        ("Decisions", [_qualified(item.text, item, t) for item in protocol.decisions]),
+        ("Topics and key points", [_qualified(item.title + ": " + item.text, item, t) for item in protocol.topics]),
+        ("Open questions", [_qualified(item.text, item, t) for item in protocol.open_questions]),
+        ("Risks", [_qualified(item.text, item, t) for item in protocol.risks]),
     ]
     for title, lines in sections:
-        story.append(Paragraph(title, styles["Heading2"]))
+        story.append(Paragraph(t(title), styles["Heading2"]))
         if lines:
             story.extend(Paragraph(f"• {escape(line)}", styles["BodyText"]) for line in lines)
         else:
-            story.append(Paragraph("No source-checked summary is available." if title == "Executive summary" else "No items were extracted for this section.", styles["BodyText"]))
+            story.append(Paragraph(t("No source-checked summary is available." if title == "Executive summary" else "No items were extracted for this section."), styles["BodyText"]))
         story.append(Spacer(1, 8))
-    story.append(Paragraph("Action items", styles["Heading2"]))
-    rows = [["Assignee", "Task", "Deadline", "Priority"]]
+    if any(source.audio_warning for source in protocol.executive_summary_sources):
+        story.append(Paragraph(t("Some cited passages have uncertain recognition. Check the recording for names and numbers."), styles["BodyText"]))
+    story.append(Paragraph(t("Action items"), styles["Heading2"]))
+    rows = [[Paragraph(t(key), styles['BodyText']) for key in ("Assignee", "Task", "Deadline", "Priority")]]
     rows.extend([
         [Paragraph(escape(item.assignee or "—"), styles["BodyText"]),
-         Paragraph(escape(_qualified(item.task, item)), styles["BodyText"]),
-         Paragraph(escape(item.deadline_text or (item.deadline_date.isoformat() if item.deadline_date else "—")), styles["BodyText"]), item.priority]
+         Paragraph(escape(_qualified(item.task, item, t)), styles["BodyText"]),
+         Paragraph(escape(item.deadline_text or (item.deadline_date.isoformat() if item.deadline_date else "—")), styles["BodyText"]), Paragraph(t(item.priority), styles['BodyText'])]
         for item in protocol.action_items
     ])
     table = Table(rows, repeatRows=1, colWidths=[90, 250, 90, 70])
@@ -149,25 +156,28 @@ def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = No
     ]))
     story.append(table)
     if not protocol.action_items:
-        story.append(Paragraph("No action items were extracted. Owners and deadlines have not been invented.", styles["BodyText"]))
+        story.append(Paragraph(t("No action items were extracted. Owners and deadlines have not been invented."), styles["BodyText"]))
     story.append(Spacer(1, 12))
-    story.append(Paragraph("Evidence references", styles["Heading2"]))
+    story.append(Paragraph(t("Evidence references"), styles["Heading2"]))
     for index, source in enumerate(protocol.executive_summary_sources, 1):
-        story.append(Paragraph(escape(f"Summary {index} → {source.item_id}"), styles["BodyText"]))
+        label = f'{t("Summary")} {index} → {source.item_id}: ' + ', '.join(source.evidence.segment_ids)
+        if source.evidence.quote: label += ' — ' + source.evidence.quote
+        story.append(Paragraph(escape(label), styles["BodyText"]))
     for item in protocol.decisions + protocol.topics + protocol.open_questions + protocol.action_items + protocol.risks:
-        quote = item.evidence.quote or "No verified source excerpt"
-        citation = "{}: {} — {}".format(item.id, ", ".join(item.evidence.segment_ids) or "No references", quote)
+        quote = item.evidence.quote or t("No verified source excerpt")
+        citation = "{}: {} — {}".format(item.id, ", ".join(item.evidence.segment_ids) or t("No references"), quote)
         if item.evidence.start is not None and item.evidence.end is not None:
             citation += " [{:.2f}–{:.2f}s]".format(item.evidence.start, item.evidence.end)
         story.append(Paragraph(escape(citation), styles["BodyText"]))
-    _append_transcript(story, styles, transcript, new_page=True)
+    _append_transcript(story, styles, transcript, new_page=True, language=language)
     SimpleDocTemplate(str(path), pagesize=A4, leftMargin=36, rightMargin=36).build(story)
 
 
-def _append_transcript(story, styles, transcript, new_page):
+def _append_transcript(story, styles, transcript, new_page, language='en'):
+    t = translator(language)
     if transcript is not None:
-        story.extend([PageBreak() if new_page else Spacer(1, 14), Paragraph("Transcript", styles["Heading1"]),
-            Paragraph("Speech recognition output for review. It may contain errors; timestamps refer to the original recording.", styles["BodyText"]), Spacer(1, 10)])
+        story.extend([PageBreak() if new_page else Spacer(1, 14), Paragraph(t("Transcript"), styles["Heading1"]),
+            Paragraph(t("Speech recognition output for review. It may contain errors; timestamps refer to the original recording."), styles["BodyText"]), Spacer(1, 10)])
         for warning in transcript.warnings:
             story.append(Paragraph(escape(warning), styles["BodyText"]))
         for segment in transcript.segments:
@@ -175,17 +185,19 @@ def _append_transcript(story, styles, transcript, new_page):
             if segment.speaker:
                 prefix += segment.speaker + ": "
             if segment.needs_review:
-                prefix += "[Check audio] "
+                prefix += t("[Check audio] ")
             story.append(Paragraph(escape(prefix + segment.text), styles["BodyText"]))
         if not transcript.segments:
-            story.append(Paragraph(escape(transcript.raw_text or "No speech was recognized. Check the recording and input audio source."), styles["BodyText"]))
+            story.append(Paragraph(escape(transcript.raw_text or t("No speech was recognized. Check the recording and input audio source.")), styles["BodyText"]))
 
 
-def _qualified(text, item):
+def _qualified(text, item, t=lambda value: value):
     if item.review_status == "rejected":
-        return "[Rejected] " + text
+        return t("[Rejected] ") + text
     if item.review_status == "needs_review" or item.source_check in {"failed", "unavailable"}:
-        return "[Needs review] " + text
+        return t("[Needs review] ") + text
+    if item.audio_warning:
+        return t("[Check audio] ") + text
     return text
 
 

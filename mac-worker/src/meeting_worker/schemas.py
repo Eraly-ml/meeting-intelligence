@@ -33,6 +33,7 @@ class ProtocolItem(BaseModel):
     text: str
     evidence: Evidence = Field(default_factory=Evidence)
     source_check: Literal["passed", "failed", "unavailable"] = "unavailable"
+    audio_warning: bool = False
     review_status: Literal[
         "unreviewed", "needs_review", "human_confirmed", "rejected"
     ] = "unreviewed"
@@ -53,6 +54,7 @@ class ActionItem(BaseModel):
     )
     evidence: Evidence = Field(default_factory=Evidence)
     source_check: Literal["passed", "failed", "unavailable"] = "unavailable"
+    audio_warning: bool = False
     review_status: Literal[
         "unreviewed", "needs_review", "human_confirmed", "rejected"
     ] = "unreviewed"
@@ -70,6 +72,7 @@ class MeetingMetadata(BaseModel):
     meeting_date: date | None = None
     timezone: str | None = None
     language: str = "auto"
+    report_language: str | None = None
     duration_seconds: float | None = None
     participants: list[str] = Field(default_factory=list)
 
@@ -78,6 +81,15 @@ class SummarySource(BaseModel):
     """Provenance for the string at the same index in executive_summary."""
     item_id: str
     evidence: Evidence
+    audio_warning: bool = False
+
+
+class MeetingOverview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=1, max_length=200)
+    language: Literal['en', 'ru', 'kk'] = 'en'
+    summary: list[ProtocolItem] = Field(default_factory=list, max_length=5)
+    topics: list[Topic] = Field(default_factory=list, max_length=8)
 
 
 class MeetingProtocol(BaseModel):

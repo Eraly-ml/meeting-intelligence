@@ -94,3 +94,6 @@ third_party/scriberr/
 
 # Supplied judging brief retained only in the local workspace
 TZ_AI_Meeting_Intelligence.pdf
+
+# Private judging recordings supplied in the workspace
+/*.mp3

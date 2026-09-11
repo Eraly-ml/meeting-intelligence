@@ -20,7 +20,7 @@ export interface JobRecord {
   error_message?: string | null
   created_at: string
   updated_at: string
-  station?: { archived: boolean; source_bytes: number; filename: string; worker_submitted: boolean }
+  station?: { archived: boolean; source_bytes: number; filename: string; worker_submitted: boolean; generated_title?: string }
 }
 export interface Evidence {
   segment_ids: string[]
@@ -34,6 +34,7 @@ export interface SourcedItem {
   evidence: Evidence
   source_check: 'passed' | 'failed' | 'unavailable'
   review_status: string
+  audio_warning?: boolean
 }
 export interface ProtocolItem extends SourcedItem { text: string }
 export interface TranscriptSegment {
@@ -51,7 +52,7 @@ export interface MeetingResult {
   protocol: {
     metadata: { title: string; language: string; participants: string[]; duration_seconds?: number | null }
     executive_summary: string[]
-    executive_summary_sources?: Array<{ item_id: string; evidence: Evidence }>
+    executive_summary_sources?: Array<{ item_id: string; evidence: Evidence; audio_warning?: boolean }>
     topics: Array<ProtocolItem & { title: string }>
     decisions: ProtocolItem[]
     open_questions: ProtocolItem[]

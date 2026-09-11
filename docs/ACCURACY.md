@@ -24,10 +24,17 @@ overlapping voices and Kazakh/Russian code-switching.
   a dotted underline and a “Check audio” marker. These probabilities are
   uncalibrated model signals, not percentages of correctness or guaranteed word
   boundaries. Unmarked words can still be wrong.
-- A report item citing an uncertain segment remains in Needs review and is
-  excluded from the derived summary and calendar tasks. CSV/JSON retain the
-  candidate together with its review status. Matching
-  a claim to a transcript does not establish that the transcript matches audio.
+- Recognition uncertainty is a separate `audio_warning`, shown as Check audio.
+  Source-supported findings and summaries remain visible with their citations;
+  missing evidence or failed semantic verification still requires review.
+  Calendar tasks with uncertain audio remain excluded without human confirmation.
+  Matching a claim to a transcript does not establish that it matches audio.
+- A final local Qwen pass generates the meeting title, coherent summary and topics
+  from the complete chronological transcript. Each summary sentence is separately
+  source-checked. Large discussions carry earlier themes into later chunks.
+  Reports preserve the requested English, Russian or Kazakh language, including
+  PDF headings and action table labels. Raw transcription is never rewritten by
+  the summarizer.
 - Token arrays are excluded from Qwen prompts to preserve context for actual
   meeting content. Original audio and segment timestamps remain available for
   checking the wording.
@@ -115,7 +122,8 @@ decisions, one topic and three source-checked tasks: Alex/Monday/medium,
 Dana/Tuesday/high, and an unassigned handover without invented deadline/priority.
 It has two risks and two question candidates; the topic, one risk and one question
 remain in Needs review. The topic is held because its cited segment contains a
-low-confidence fragment, illustrating the conservative rule's false positives.
+low-confidence fragment, illustrating the old rule's false positives. New reports
+show that uncertainty separately instead of automatically hiding the finding.
 Forty transcript segments preserve three recognition warnings.
 The corrected owner and deadline were retained instead of the superseded proposal.
 

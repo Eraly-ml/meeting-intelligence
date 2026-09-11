@@ -85,10 +85,11 @@ class Pipeline:
             protocol = call_ollama(transcript, job.manifest, self.config)
             job = self.store.update(job.id, JobStage.VALIDATING)
             protocol.metadata = MeetingMetadata(
-                title=job.manifest.title,
+                title=protocol.metadata.title or job.manifest.title,
                 meeting_date=job.manifest.meeting_date,
                 timezone=job.manifest.timezone,
                 language=transcript.language,
+                report_language=protocol.metadata.report_language or (job.manifest.output_language if job.manifest.output_language != 'same' else transcript.language),
                 duration_seconds=duration if job.source_kind == "audio" else None,
             )
             # call_ollama already validated citations and reviewed final claims.

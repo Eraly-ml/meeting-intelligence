@@ -32,16 +32,18 @@ def test_unknown_confidence_and_language_controls():
         JobManifest(meeting_id='test', vocabulary='x' * 401)
 
 
-def test_uncertain_audio_cannot_be_promoted_into_a_source_checked_summary():
+def test_audio_uncertainty_stays_visible_without_hiding_supported_meaning():
     transcript = Transcript(model='fixture', raw_text='Timur sends it Monday.', segments=[
         TranscriptSegment(id='s1', text='Timur sends it Monday.', needs_review=True)])
     report = MeetingProtocol(metadata=MeetingMetadata(), action_items=[ActionItem(id='a1',
         task='Send it', assignee='Timur', deadline_text='Monday', evidence=Evidence(segment_ids=['s1']))])
     report = validate_evidence(report, transcript)
     assert report.action_items[0].source_check == 'passed'
-    assert report.action_items[0].review_status == 'needs_review'
+    assert report.action_items[0].review_status == 'unreviewed'
+    assert report.action_items[0].audio_warning
     derive_summary(report, JobManifest(meeting_id='test'), 'en')
-    assert report.executive_summary == []
+    assert report.executive_summary
+    assert all(source.audio_warning for source in report.executive_summary_sources)
 
 
 def test_wer_counts_substitution_deletion_insertion_and_preserves_kazakh():

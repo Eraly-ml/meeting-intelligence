@@ -69,6 +69,8 @@ def test_local_model_semantic_review_flags_unsupported(tmp_path):
             return httpx.Response(200, json={'model_info': {'x': 1}, 'details': {'format': 'gguf'}})
         if 'verdicts' in payload['format']['properties']:
             return httpx.Response(200, json={'done': True, 'message': {'content': json.dumps({'verdicts': [{'id': 0, 'supported': False}]})}})
+        if 'summary' in payload['format']['properties']:
+            return httpx.Response(200, json={'done': True, 'message': {'content': json.dumps({'title': 'Report delivery', 'summary': [], 'topics': []})}})
         return httpx.Response(200, json={'done': True, 'message': {'content': report.model_dump_json()}})
     original = httpx.Client
     def client(**kwargs):
@@ -78,7 +80,7 @@ def test_local_model_semantic_review_flags_unsupported(tmp_path):
         result = call_ollama(transcript, JobManifest(meeting_id='test'), settings)
     assert result.action_items[0].source_check == 'failed'
     assert result.action_items[0].review_status == 'needs_review'
-    assert len(requests) == 3
+    assert len(requests) == 4
 
 
 def test_generation_schema_requires_grounded_refs_and_no_inferred_date():
@@ -133,7 +135,13 @@ def test_unsolicited_model_summary_cannot_bypass_fact_review(tmp_path, semantic)
             claims = json.loads(payload['messages'][1]['content'])
             reviewed.extend(claims)
             return httpx.Response(200, json={'done': True, 'message': {'content': json.dumps({'verdicts': [
-                {'id': claim['id'], 'supported': True} for claim in claims]})}})
+                {'id': claim['id'], 'supported': 'cancelled' not in claim['claim'].get('text', '')} for claim in claims]})}})
+        if 'summary' in payload['format']['properties']:
+            return httpx.Response(200, json={'done': True, 'message': {'content': json.dumps({
+                'title': 'Report delivery and launch timing', 'topics': [], 'summary': [
+                    {'id': 'x', 'text': 'The launch waits for the report.', 'evidence': {'segment_ids': ['s2']}},
+                    {'id': 'y', 'text': 'Timur will send the report Monday.', 'evidence': {'segment_ids': ['s1']}},
+                    {'id': 'z', 'text': 'All other tasks were cancelled.', 'evidence': {'segment_ids': ['s1']}}]})}})
         assert 'executive_summary' not in payload['format']['properties']
         assert 'executive_summary_sources' not in payload['format']['properties']
         return httpx.Response(200, json={'done': True, 'message': {'content': report.model_dump_json()}})
@@ -143,9 +151,8 @@ def test_unsolicited_model_summary_cannot_bypass_fact_review(tmp_path, semantic)
         result = call_ollama(transcript, JobManifest(meeting_id='fixture'), settings)
     assert not any('cancelled' in line or 'superseded' in line for line in result.executive_summary)
     if semantic:
-        assert {claim['kind'] for claim in reviewed} == {'decision', 'action'}
-        assert result.executive_summary == ['Postpone the launch until the report is complete.',
-            'Timur is responsible for the task “Send report”.', 'The deadline for “Send report” is Monday.']
+        assert {claim['kind'] for claim in reviewed} == {'decision', 'action', 'summary'}
+        assert result.executive_summary == ['The launch waits for the report.', 'Timur will send the report Monday.']
         assert result.executive_summary_sources[0].evidence.segment_ids == ['s2']
     else:
         assert not reviewed and result.executive_summary == []
