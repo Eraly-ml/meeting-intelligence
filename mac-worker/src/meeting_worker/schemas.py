@@ -94,6 +94,12 @@ class MeetingProtocol(BaseModel):
     risks: list[ProtocolItem] = Field(default_factory=list)
 
 
+class TranscriptToken(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+    text: str
+    probability: float = Field(ge=0, le=1)
+
+
 class TranscriptSegment(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False)
     id: str
@@ -102,6 +108,8 @@ class TranscriptSegment(BaseModel):
     text: str = Field(max_length=1000000)
     speaker: str | None = None
     language: str | None = None
+    tokens: list[TranscriptToken] = Field(default_factory=list)
+    needs_review: bool = False
 
     @model_validator(mode="after")
     def valid_interval(self):
@@ -118,6 +126,7 @@ class Transcript(BaseModel):
     model: str
     raw_text: str
     segments: list[TranscriptSegment]
+    warnings: list[str] = Field(default_factory=list)
 
 
 class JobManifest(BaseModel):
@@ -125,7 +134,8 @@ class JobManifest(BaseModel):
     schema_version: str = "1.0"
     meeting_id: str = Field(min_length=1, max_length=200)
     title: str = Field(default="Meeting", min_length=1, max_length=200)
-    language_mode: Literal["kk_ru", "en", "auto"] = "auto"
+    language_mode: Literal["kk_ru", "kk", "ru", "en", "auto"] = "auto"
+    vocabulary: str = Field(default="", max_length=400)
     output_language: Literal["same", "kk", "ru", "en"] = "same"
     meeting_date: date | None = None
     timezone: str | None = None

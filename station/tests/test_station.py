@@ -55,7 +55,7 @@ class FakeMac:
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(token=TOKEN, worker_token=WORKER_TOKEN, worker_url="http://192.168.1.42:8765", data_dir=tmp_path / "station", poll_seconds=0.001)
+    return Settings(token=TOKEN, worker_token=WORKER_TOKEN, worker_url="http://127.0.0.1:8765", data_dir=tmp_path / "station", poll_seconds=0.001)
 
 
 @pytest.fixture
@@ -100,6 +100,19 @@ def test_upload_archive_and_strict_idempotency(client, settings):
     assert len(client.get("/v1/jobs").json()) == 1
     assert not list((settings.data_dir / "incoming").iterdir())
     assert not client.app.state.mac.uploads  # HTTP acceptance does not wait for or start inference.
+
+
+def test_replay_of_pre_vocabulary_manifest_keeps_same_archived_meeting(client):
+    job_id = submit(client).json()['id']
+    store = client.app.state.store
+    legacy = store.get(job_id)
+    del legacy['manifest']['vocabulary']
+    store.db.execute('UPDATE jobs SET payload=? WHERE id=?', (json.dumps(legacy), job_id))
+    assert submit(client, job_id=job_id).status_code == 202
+    changed = dict(legacy['manifest'], vocabulary='Changed spelling hints')
+    response = client.post('/v1/jobs', headers={'Idempotency-Key': job_id},
+        data={'manifest_json': json.dumps(changed)}, files={'audio': ('meeting.wav', b'test audio', 'audio/wav')})
+    assert response.status_code == 409
 
 
 def test_upload_size_actual_bytes_invalid_id_and_formats(settings):

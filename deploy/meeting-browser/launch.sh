@@ -43,6 +43,7 @@ dbus-run-session -- chromium --user-data-dir=/var/lib/meeting-browser/profile \
     --no-first-run --no-default-browser-check --disable-dev-shm-usage \
     --disable-background-networking --disable-component-update \
     --disable-sync --disable-translate --password-store=basic \
+    --autoplay-policy=no-user-gesture-required \
     --window-size=1280,800 about:blank &
 browser_pid=$!
 browser_children="$browser_children $browser_pid"

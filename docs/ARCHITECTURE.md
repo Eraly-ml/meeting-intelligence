@@ -4,10 +4,10 @@ The hackathon deployment uses a **Radxa Cubie A7A with 6 GB RAM and Debian 11 CL
 
 ```text
 Browser on the office LAN
-       │ HTTP on demo LAN / HTTPS with local certificate authority
+       │ HTTPS · private certificate authority
        ▼
 Radxa Cubie A7A · 192.168.8.57
-http://192.168.8.57
+https://192.168.8.57
        │
        ├─ /meeting-intelligence
        │      Go + embedded React UI · 127.0.0.1:8081
@@ -22,7 +22,7 @@ http://192.168.8.57
               ├─ SQLite archive and persistent forwarding queue
               └─ cached transcript, protocol, JSON, CSV, PDF and ICS
                          │
-                         │ private LAN · separate worker Bearer token
+                         │ mutual TLS · pinned private CA + worker Bearer token
                          ▼
 MacBook Air M5 · 192.168.8.84:8765
        Python worker · one inference job at a time
@@ -57,9 +57,9 @@ On the board, the application is installed under `/opt/meeting-intelligence`; pr
 
 The **Record microphone** action uses the microphone attached to the Radxa through ALSA, so the Mac browser's microphone permission and secure-context support are not part of this capture path. The station reports whether a capture device is available. Recording begins only on an explicit start action, saves the full WAV on the board, and is sent for inference after stopping. Recording duration is bounded by the configured upload size. Live ASR during board recording is not implemented.
 
-**Join online meeting** opens a real Chromium browser inside a separate Debian 12 filesystem on the Radxa. The host remains Debian 11. A dedicated non-root service owns this browser, its profile and a PulseAudio playback sink; a separate silent microphone prevents audio feedback. The authenticated station page can display and control that browser through a local noVNC proxy. Opening a link is not evidence of meeting admission: a person must complete the platform's join flow and any host admission. Google Meet is the primary demo target; Zoom and Teams browser flows depend on their own account and meeting policies. No platform bot SDK or Telegram account is required for this path.
+**Join & record** uses Chromium inside a separate Debian 12 filesystem on the Radxa; the host remains Debian 11. A dedicated non-root service owns its encrypted profile and PulseAudio playback sink. The controller disables microphone/camera, enters the participant name and requests admission. It watches call controls to distinguish waiting, joined, blocked and ended states. Host/account policies still apply. Automatic entry into the supplied Google Meet was verified; Zoom/Teams live admission remains unproven. The noVNC view is available for initial account setup or troubleshooting. No Telegram account is required.
 
-Online recording captures the PulseAudio playback monitor into a full WAV. Stop finalizes the source and imports it into the same durable station queue. The original browser recording is retained if that import fails. This initial implementation supports one browser meeting at a time and processes audio after stopping. It does not provide live transcripts or guarantee recognition accuracy. Meeting traffic uses the platform's internet services; the saved recording, transcription, diarization, LLM processing and exports stay on the Radxa and Mac.
+Online recording captures the PulseAudio playback monitor into a full WAV, beginning before the join request. Call end or Leave & process finalizes the source; a background reconciler imports it into the durable station queue even when the UI is closed. Failed imports retain the source and retry. Failed admission is recorded as a failed capture rather than a normal report. One browser meeting is supported at a time, with transcription after stopping. Meeting traffic uses the provider's internet services; saved recordings and inference stay on the Radxa and Mac.
 
 Imported MP3, WAV, M4A, WebM, CAF, OGG and FLAC files follow the same queue. The browser upload form offers MP3, WAV, M4A, WebM and CAF; the API additionally accepts OGG and FLAC. Existing text transcripts can skip ASR. Upload acknowledgement follows a flushed source file and a committed database row. A UUID idempotency key and source hash prevent replayed uploads from creating duplicate jobs.
 
@@ -72,11 +72,11 @@ recording (board only) → queued → preprocessing → transcribing
 
 The Radxa can accept multiple jobs while the Mac processes them serially. A disconnected Mac leaves sources and jobs on the station, with visible status and automatic retry backoff. Interrupted Mac inference becomes a retryable failure. Cancellation preserves the source and lets an active model call finish safely. The station marks a meeting complete only after the result and its JSON, CSV, PDF and calendar exports are cached on the board; those remain accessible without the Mac.
 
-The UI polls status and archive metadata. Audio is fetched with authentication only when the user loads that recording, and is not re-downloaded on every status update. Transcripts show timestamps and anonymous speaker labels. Evidence links open the cited transcript passages; an available audio player can seek to the source timestamp.
+The UI polls status and archive metadata. Audio loads automatically with authentication when a meeting is selected, without re-downloading on every status update. Transcripts show timestamps and anonymous speaker labels. Evidence links open the cited transcript and seek the player. PDFs include the full transcript; an empty extraction is marked for review and starts the transcript on the first page.
 
 ## Local models and what readiness means
 
-The provisioned profile uses multilingual **whisper.cpp large-v3-turbo q5** for ASR and **Qwen3.5 4B** through local Ollama. Turbo corrected a name error from base on the local synthetic fixture, with about 829 MiB peak ASR process footprint; base remains a smaller fallback. This does not establish accuracy for Kazakh, Russian, mixed-language speech or overlapping voices. Optional Shyngys, MLX Distil-Whisper and GigaAM adapters require their own installed libraries and local model directories. They have not been benchmarked in this deployment.
+The worker uses full multilingual **Whisper large-v3**, and **large-v3-turbo q5** for explicitly English input based on the available fixture. **Qwen3.5 4B** runs through loopback Ollama. Recognition probabilities are retained as review signals, not correctness scores; claims citing uncertain speech remain in review. See [accuracy measurements and missing evidence](ACCURACY.md).
 
 Diarization uses local Sherpa ONNX segmentation and speaker-embedding models when provisioned and requested. It distinguishes anonymous voices; it cannot identify participants by name. Uncertain overlapping spans remain unassigned. The Mac serializes heavy jobs to fit its 16 GB memory; performance and accuracy must be measured on representative meetings.
 
@@ -86,4 +86,9 @@ Capabilities distinguish a reachable worker from installed speech-model resource
 
 All runtime inference uses installed binaries and local model files. Ollama binds to loopback with cloud features disabled. The station refuses public worker destinations, redirects and environment HTTP proxies. The station UI loads its fonts and assets locally, without Google Fonts or CDN requests. Downloads during provisioning are separate from runtime inference. During the exact two-minute run, the optional online browser was stopped and process-level socket inspection found only the Radxa–Mac worker connection plus loopback Ollama on the Mac, with no established external peer on the Radxa. A physically WAN-disconnected run remains outstanding.
 
-Carelink is preserved for restoration. Its consistent application/configuration backup is stored privately on this Mac at `backups/carelink-20260911/`, with checksums and file manifests. This is an application/configuration backup, **not a bootable disk image**. The board's existing Carelink code and data remain in place while its service and active Caddy routing are switched for the hackathon. SSH, the OS and existing certificate authority are retained. See [the runbook](RUNBOOK.md) for activation and rollback.
+Carelink is preserved for restoration. Its consistent application/configuration backup is stored privately on this Mac at `backups/carelink-20260911/`, with checksums and file manifests. This is an application/configuration backup, **not a bootable disk image**. The board's existing Carelink code and data remain in place while its service and active Caddy routing are switched for the hackathon. The base OS remains; SSH now requires keys, and the station has a new private TLS authority. The old Caddy state is preserved for rollback. See [the runbook](RUNBOOK.md) for activation and rollback.
+
+
+## Encryption boundary
+
+HTTPS protects browser actions; mutual TLS authenticates both devices. The Radxa archive, browser profile, account database, credentials and Caddy keys live in a gocryptfs vault. Its password stays on the FileVault-enabled Mac and is sent only through pinned SSH when unlocking. Local loopback connections remain within each device. Services fail closed while the archive is locked. The OS filesystem itself is not encrypted. See [security and recovery](SECURITY.md).

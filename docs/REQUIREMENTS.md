@@ -17,7 +17,7 @@ remain on those devices. Provisioning downloads are completed beforehand.
 | Executive summary of 3–5 key sentences | Summary derives up to five supported facts, with aligned source references, after semantic review. See [protocol extraction](../mac-worker/src/meeting_worker/protocol.py). | The exact benchmark produced five source-checked sentences. Sparse speech may yield fewer than three because the worker does not invent filler solely to meet the target. |
 | Decisions, topics/key points, open questions | Separate structured collections, chronological reconciliation and source citations; report views and PDF/JSON expose them. The main UI separates failed candidates from source-checked facts. | The benchmark retained the corrected Wednesday launch, local-processing choice, key topic and battery-budget question. A second generated “question” failed its source check and appeared only in the review queue, demonstrating the boundary rather than perfect model classification. |
 | Action table: responsible person, task, deadline if stated, priority | Dedicated fields in the [schema](../mac-worker/src/meeting_worker/schemas.py), report and exports. Unknown owners/deadlines remain empty; unspecified priority remains `not_specified`. Relative deadlines retain their spoken form. | The benchmark produced all three expected actions: Alex/Monday/medium, Dana/Tuesday/high and an unassigned support handover with no deadline or priority. It did not preserve the superseded Dana/Friday proposal or invent calendar dates. |
-| Download CSV, JSON **or** PDF | All three are generated on the Mac and cached on the Radxa before the job becomes complete. CSV contains actions; JSON contains protocol and transcript; PDF contains the report and evidence references. | The benchmark cached a 37,533-byte PDF, 20,700-byte JSON result and 1,038-byte CSV. Export tests cover Unicode data, PDF content, evidence appendices and CSV formula escaping. Earlier disconnect testing showed cached PDF retrieval with the Mac stopped. |
+| Download CSV, JSON **or** PDF | All three are generated on the Mac and cached on the Radxa before the job becomes complete. CSV contains actions with review status; JSON contains protocol and transcript; PDF contains the report, evidence and timestamped transcript. | Exports were retrieved through the deployed HTTPS app. A real empty-protocol PDF defect was fixed: it now states the extraction failure and starts the transcript on the first page. Existing archived PDFs were regenerated. Tests cover Unicode, report content and CSV formula escaping. Cached PDF retrieval and preservation after reboot passed. |
 | Local ASR and local LLM; no external commercial API requests | Installed Whisper and diarization models; loopback-only Ollama/Qwen; station permits private worker destinations and ignores environment proxies. Station assets are served locally. | The optional meeting browser was stopped for the exact run. Process-level socket inspection showed the worker connected only to the Radxa and loopback Ollama; the Radxa had no established external peer. This is strong boundary evidence, but it is not a physical WAN-disconnection test. |
 
 The model review is another local model judgment, not human confirmation or a
@@ -40,6 +40,35 @@ The brief allocates 30 points to required functionality, 20 to AI accuracy,
 20 to locality, 15 to bonus features, 10 to UI/performance on a two-minute recording,
 and 5 to presentation with a random test recording. These are rubric weights,
 not a claim about points earned.
+
+## Latest audit after security changes — 11 September 2026
+
+**The six mandatory workflows are implemented, but full acceptance is not yet
+proven.** The 3–5 sentence summary target is conditional on enough supported
+facts; empty or uncertain audio can produce fewer. No rubric item justifies
+inventing facts to fill the requested structure.
+
+| Area | Latest status |
+| --- | --- |
+| Mandatory upload/text → local ASR/LLM → structured protocol → downloads | Implemented. The encrypted two-minute WAV run passed with five sourced summary sentences, four accepted decisions and three correctly assigned/unassigned tasks. |
+| Privacy/locality | HTTPS, mutual TLS, encrypted station archive, FileVault Mac, rotated tokens and SSH key authentication deployed. Inference stays local; physical WAN-disconnected acceptance remains outstanding. |
+| Diarization bonus | Implemented with local models; real speaker error and overlapping speech not measured. |
+| Russian/Kazakh/English and mixed speech bonus | Multilingual models and explicit language controls are present. Representative human and code-switching quality remains unvalidated. |
+| RAG/chat bonus | **Missing** from the deployed station. |
+| Task integration/calendar bonus | Local ICS export implemented. Trello/Notion/Jira are absent; the brief permits a calendar alternative. |
+| Risks/blockers bonus | Implemented with evidence and review flags; one risk in the latest fixture remains held for audio review. |
+| Two-minute performance and random recording demonstration | Latest encrypted run: **62.567 seconds**, all four exports. A previously unseen human recording still needs to be demonstrated. |
+| Actual captured recording | A 152.289-second recording exposed repetition and an empty protocol. Context reset removed the repeated-output loop, but 19 segments still need review and the rerun produced no structured findings. Real-meeting accuracy and completeness therefore remain **unproven**. |
+| Unattended startup and joining (outside the rubric) | Boot recovery is installed; an actual reboot restored the website, encrypted archive, Mac connection and browser in 80.745 seconds. Join automation handles name, media controls, request, admission state and call-end archival. Provider restrictions can still prevent admission. |
+
+Encryption is an added privacy control, not a separately listed mandatory feature
+in the PDF. Telegram, automatic joining of every meeting platform, live streaming
+and a native Mac capture client are also not mandatory PDF requirements. They
+must not be counted as delivered merely because prototypes or upstream code exist.
+
+The [accuracy audit](ACCURACY.md) records the actual model comparison, confidence
+limitations and required human tests. The [security audit](SECURITY.md) records
+the encryption boundaries, tested rejection paths and recovery procedure.
 
 For a reviewable acceptance run:
 
@@ -76,13 +105,15 @@ throughput and correction tests; it does not measure noisy human-meeting accurac
 The brief does not require automatic meeting joining or a Telegram bot. The
 Radxa browser is an additional input path: it can open a meeting link, support
 manual sign-in/admission through the station viewer, and record its playback
-before sending saved audio into the same local pipeline. Platform policies and
-host admission still apply. A loaded page or a synthetic audio signal does not
-prove that a real meeting was joined successfully.
+before sending saved audio into the same local pipeline. The Join & record flow
+now performs guest entry and records before requesting admission. It distinguishes
+waiting, joined, rejected and ended states; rejected captures are retained as
+failures rather than normal reports. Platform policies and host admission still
+apply. A loaded page or synthetic audio signal does not prove successful admission.
 
 This input path requires internet access to the meeting provider. It therefore
 must not be presented as the fully offline workflow. Inference and storage remain
 local after capture. The current deployment handles one browser meeting at a
 time and transcribes after recording stops; live transcripts, automatic meeting
-detection and Telegram control are not implemented. See the [architecture](ARCHITECTURE.md)
+discovery and Telegram control are not implemented. See the [architecture](ARCHITECTURE.md)
 and [deployment runbook](RUNBOOK.md) for the boundaries and restoration procedure.

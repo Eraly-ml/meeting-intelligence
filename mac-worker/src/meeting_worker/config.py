@@ -1,5 +1,6 @@
 from pathlib import Path
 import ipaddress
+import ssl
 from urllib.parse import urlsplit, urlunsplit
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +13,9 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     bind_host: str = "127.0.0.1"
     bind_port: int = 8765
+    tls_cert_file: str = ""
+    tls_key_file: str = ""
+    tls_client_ca_file: str = ""
     allowed_origins: str = "http://localhost:8080,http://127.0.0.1:8080"
     api_token: str = ""
     ollama_url: str = "http://127.0.0.1:11434"
@@ -35,6 +39,9 @@ class Settings(BaseSettings):
     ffmpeg_binary: str = "ffmpeg"
     whisper_binary: str = ""
     whisper_model: str = ""
+    whisper_model_en: str = ""
+    whisper_prompt: str = ""
+    whisper_vad_model: str = ""
     segmentation_model: str = ""
     embedding_model: str = ""
     pdf_font: str = ""
@@ -87,3 +94,19 @@ class Settings(BaseSettings):
             raise ValueError("Runtime model downloads are disabled; provision models first and use MI_HF_OFFLINE=true")
         for child in ("sources", "work", "results", "exports"):
             (self.data_dir / child).mkdir(parents=True, exist_ok=True)
+
+    def server_tls(self) -> dict:
+        try:
+            loopback = ipaddress.ip_address(self.bind_host).is_loopback
+        except ValueError:
+            loopback = self.bind_host == "localhost"
+        files = (self.tls_cert_file, self.tls_key_file, self.tls_client_ca_file)
+        if not loopback and not all(files):
+            raise ValueError("Binding the worker to a LAN interface requires mutual TLS")
+        if any(files) and not all(files):
+            raise ValueError("Worker TLS requires a server certificate, key and client CA")
+        if not all(files):
+            return {}
+        return {"ssl_certfile": self.tls_cert_file, "ssl_keyfile": self.tls_key_file,
+                "ssl_ca_certs": self.tls_client_ca_file, "ssl_cert_reqs": ssl.CERT_REQUIRED,
+                "ssl_version": ssl.PROTOCOL_TLS_SERVER, "ssl_ciphers": "ECDHE+AESGCM:ECDHE+CHACHA20"}

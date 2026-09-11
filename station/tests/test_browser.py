@@ -33,6 +33,8 @@ class FakeBrowser:
         self.fail_download = False
         self.audio = wav_bytes()
         self.calls = []
+        self.ended = False
+        self.capture_error = None
 
     async def close(self):
         pass
@@ -40,16 +42,17 @@ class FakeBrowser:
     async def json(self, method, path, **kwargs):
         self.calls.append((method, path, kwargs))
         if path == "/v1/status":
-            return {"available": True, "state": "opened", "active_recording_id": self.active}
+            return {"available": True, "state": "opened", "active_recording_id": self.active,
+                'recordings':[{'id':id, 'state':'stopped' if self.ended else 'recording'} for id in self.recordings]}
         if path == "/v1/open":
             return {"available": True, "state": "opened", "message": "Join manually"}
-        if path.endswith("/start"):
+        if path.endswith("/start") or path == '/v1/join':
             self.active = kwargs["json"]["id"]
             self.recordings[self.active] = self.audio
             return {"id": self.active, "state": "recording"}
         if path.endswith("/stop"):
             self.active = None
-            return {"id": path.split("/")[3], "state": "stopped", "error": None}
+            return {"id": path.split("/")[3], "state": "stopped", "error": self.capture_error}
         raise AssertionError(path)
 
     async def download(self, recording_id, temporary):
@@ -196,6 +199,44 @@ def test_browser_capture_archives_audio_before_worker_receives_it(browser_client
     asyncio.run(browser_client.app.state.worker.run_once())
     assert browser_client.app.state.mac.uploads == [(job["id"], wav_bytes())]
     assert browser_client.post("/v1/browser/recordings/" + job["id"] + "/stop").status_code == 200
+
+
+def test_one_link_joins_and_archives_on_call_end_without_ui_polling(browser_client):
+    response = browser_client.post('/v1/browser/join', json={'url':'https://meet.google.com/qzi-ybjj-uzt','title':'Automatic meeting'})
+    assert response.status_code == 202
+    job_id = response.json()['id']
+    assert response.json()['stage'] == 'recording'
+    browser = browser_client.app.state.browser
+    assert browser.calls[-1][1] == '/v1/join'
+    assert browser.calls[-1][2]['json']['id'] == job_id
+    assert browser_client.post('/v1/browser/join', json={'url':'https://meet.google.com/qzi-ybjj-uzt'}).status_code == 409
+    browser.ended = True
+    browser.active = None
+    asyncio.run(browser_client.app.state.browser_capture.reconcile_once())
+    job = browser_client.get('/v1/jobs/'+job_id).json()
+    assert job['stage'] == 'queued' and job['station']['archived']
+    assert browser_client.get('/v1/jobs/'+job_id+'/audio').content == wav_bytes()
+    asyncio.run(browser_client.app.state.worker.run_once())
+    assert browser_client.app.state.mac.uploads == [(job_id,wav_bytes())]
+
+
+def test_silent_capture_is_archived_with_error_and_never_sent_as_success(browser_client):
+    browser = browser_client.app.state.browser
+    browser.capture_error = 'No sound was captured. The original file is retained.'
+    job_id = browser_client.post('/v1/browser/recordings/start', json={}).json()['id']
+    result = browser_client.post('/v1/browser/recordings/' + job_id + '/stop').json()
+    assert result['stage'] == 'failed' and result['station']['archived']
+    assert result['error_message'] == browser.capture_error
+    assert browser_client.get('/v1/jobs/' + job_id + '/audio').content == browser.audio
+    asyncio.run(browser_client.app.state.worker.run_once())
+    assert browser_client.app.state.mac.uploads == []
+
+
+def test_automatic_join_rejects_untrusted_links_before_creating_jobs(browser_client):
+    response = browser_client.post('/v1/browser/join', json={'url':'https://127.0.0.1:9222/json'})
+    assert response.status_code == 422
+    assert not browser_client.app.state.browser.calls
+    assert browser_client.get('/v1/jobs').json() == []
 
 
 def test_interrupted_import_retains_audio_and_stop_can_retry(browser_client):

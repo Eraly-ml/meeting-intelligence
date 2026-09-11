@@ -134,6 +134,47 @@ class BrowserCapture:
         self.store, self.browser = store, browser
         self.lock = asyncio.Lock()
 
+    async def join(self, body):
+        async with self.lock:
+            state = await self.browser.json('GET', '/v1/status')
+            if state.get('active_recording_id'):
+                raise StoreError('A meeting is already joining or recording')
+            job_id = str(uuid4())
+            manifest = Manifest(meeting_id=job_id, **body.model_dump(exclude={'url'})).model_dump(mode='json')
+            self.store.create(job_id, manifest, 'audio', 'meeting-browser.wav', job_id + '.wav', 0, '', recording=True)
+            try:
+                await self.browser.json('POST', '/v1/join', json={'url':body.url, 'id':job_id})
+            except StoreError:
+                # A lost response may follow successful capture startup. Keep the
+                # durable import pending so the reconciler can recover its WAV.
+                self.store.browser_import_pending(job_id)
+                with contextlib.suppress(StoreError):
+                    confirmed = await self.browser.json('GET', '/v1/status')
+                    if confirmed.get('available') and confirmed.get('active_recording_id') != job_id and not any(r.get('id') == job_id for r in confirmed.get('recordings', [])):
+                        self.store.finish_recording(job_id, 'The meeting browser could not start joining. Check the station browser and try the link again.')
+                raise
+            return self.store.get(job_id)
+
+    async def reconcile_once(self):
+        state = await self.browser.json('GET', '/v1/status')
+        for record in state.get('recordings', []):
+            if record.get('state') == 'recording':
+                continue
+            try:
+                job = self.store.get(record['id'])
+            except StoreError:
+                continue
+            if job['stage'] == 'recording' and not job['station'].get('archived'):
+                await self.stop(record['id'])
+
+    async def run(self):
+        while True:
+            try:
+                await self.reconcile_once()
+            except (StoreError, OSError):
+                pass  # Original audio stays in the controller until import succeeds.
+            await asyncio.sleep(2)
+
     async def start(self, body):
         async with self.lock:
             state = await self.browser.json("GET", "/v1/status")
@@ -194,6 +235,10 @@ class OpenMeeting(BaseModel):
     url: str = Field(min_length=1, max_length=4096)
 
 
+class JoinMeeting(RecordingStart):
+    url: str = Field(min_length=1, max_length=4096)
+
+
 def install_browser_routes(app, settings, sessions):
     @app.get("/v1/browser/status")
     async def status():
@@ -220,6 +265,14 @@ def install_browser_routes(app, settings, sessions):
                             samesite="strict", secure=request.url.scheme == "https")
         response.headers["Cache-Control"] = "no-store"
         return response
+
+    @app.post('/v1/browser/join', status_code=202)
+    async def join_meeting(body: JoinMeeting):
+        try:
+            validate_meeting_url(body.url)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return await app.state.browser_capture.join(body)
 
     @app.post("/v1/browser/recordings/start", status_code=202)
     async def start(body: RecordingStart):

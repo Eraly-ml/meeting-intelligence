@@ -1,5 +1,6 @@
 import ipaddress
 import os
+import ssl
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -40,12 +41,22 @@ class Settings:
     browser_url: str = "http://127.0.0.1:8770"
     browser_token: str = ""
     browser_public_prefix: str = "/api/meeting-worker"
+    worker_ca_file: str = ""
+    worker_cert_file: str = ""
+    worker_key_file: str = ""
 
     def __post_init__(self):
         for name, token in (("MI_STATION_TOKEN", self.token), ("MI_STATION_WORKER_TOKEN", self.worker_token)):
             if len(token) < 16 or token != token.strip():
                 raise ValueError(name + " must contain at least 16 characters, with no outer whitespace")
         object.__setattr__(self, "worker_url", private_url(self.worker_url))
+        worker = urlsplit(self.worker_url)
+        remote = not ipaddress.ip_address(worker.hostname).is_loopback
+        tls_files = (self.worker_ca_file, self.worker_cert_file, self.worker_key_file)
+        if remote and (worker.scheme != "https" or not all(tls_files)):
+            raise ValueError("A LAN worker requires HTTPS, a pinned CA and a client certificate/key")
+        if any(tls_files) and (worker.scheme != "https" or not all(tls_files)):
+            raise ValueError("Configure all three worker TLS files with HTTPS; no insecure fallback is allowed")
         browser = urlsplit(private_url(self.browser_url))
         if browser.hostname != "127.0.0.1" or browser.scheme != "http":
             raise ValueError("Browser controller must use HTTP on 127.0.0.1")
@@ -64,4 +75,15 @@ class Settings:
                    bind_host=os.getenv("MI_STATION_BIND_HOST", "127.0.0.1"),
                    bind_port=int(os.getenv("MI_STATION_BIND_PORT", "8766")),
                    browser_url=os.getenv("MI_STATION_BROWSER_URL", "http://127.0.0.1:8770"),
-                   browser_token=os.getenv("MI_STATION_BROWSER_TOKEN", ""))
+                   browser_token=os.getenv("MI_STATION_BROWSER_TOKEN", ""),
+                   worker_ca_file=os.getenv("MI_STATION_WORKER_CA_FILE", ""),
+                   worker_cert_file=os.getenv("MI_STATION_WORKER_CERT_FILE", ""),
+                   worker_key_file=os.getenv("MI_STATION_WORKER_KEY_FILE", ""))
+
+    def worker_tls(self):
+        if not self.worker_ca_file:
+            return True
+        context = ssl.create_default_context(cafile=self.worker_ca_file)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(self.worker_cert_file, self.worker_key_file)
+        return context

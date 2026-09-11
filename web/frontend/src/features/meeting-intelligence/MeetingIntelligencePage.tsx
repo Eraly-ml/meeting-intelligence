@@ -179,6 +179,7 @@ function UploadDialog({ open, onOpenChange, config, maxBytes, diarizationAvailab
   const [meetingTitle, setMeetingTitle] = useState('')
   const [language, setLanguage] = useState('kk_ru')
   const [outputLanguage, setOutputLanguage] = useState('same')
+  const [vocabulary, setVocabulary] = useState('')
   const [diarization, setDiarization] = useState(false)
   const [file, setFile] = useState<File>()
   const [transcript, setTranscript] = useState('')
@@ -206,8 +207,8 @@ function UploadDialog({ open, onOpenChange, config, maxBytes, diarizationAvailab
     const controller = new AbortController(); uploadController.current = controller
     try {
       if (!submission.current) submission.current = createID()
-      const job = await submitMeeting(config, { id: submission.current, title: meetingTitle.trim(), languageMode: language, outputLanguage, diarization: diarization && diarizationAvailable !== false, file: mode === 'audio' ? file : undefined, transcript: mode === 'text' ? transcript : undefined }, setPercent, controller.signal)
-      onCreated(job); onOpenChange(false); setFile(undefined); setTranscript(''); setMeetingTitle(''); submission.current = ''
+      const job = await submitMeeting(config, { id: submission.current, title: meetingTitle.trim(), languageMode: language, outputLanguage, vocabulary: mode === 'audio' ? vocabulary : '', diarization: diarization && diarizationAvailable !== false, file: mode === 'audio' ? file : undefined, transcript: mode === 'text' ? transcript : undefined }, setPercent, controller.signal)
+      onCreated(job); onOpenChange(false); setFile(undefined); setTranscript(''); setMeetingTitle(''); setVocabulary(''); submission.current = ''
       if (fileInput.current) fileInput.current.value = ''
     } catch (cause) { if (!(cause instanceof DOMException && cause.name === 'AbortError')) setError(message(cause)) } finally { setBusy(false); uploadController.current = null }
   }
@@ -215,7 +216,8 @@ function UploadDialog({ open, onOpenChange, config, maxBytes, diarizationAvailab
     <label htmlFor="mi-meeting-title">Meeting title</label><Input id="mi-meeting-title" required maxLength={200} placeholder="e.g. Friday product planning" value={meetingTitle} onChange={event => { setMeetingTitle(event.target.value); submission.current = '' }} />
     <div className="mi-input-mode"><button type="button" className={mode === 'audio' ? 'is-active' : ''} onClick={() => { setMode('audio'); submission.current = '' }}><FileAudio />Audio recording</button><button type="button" className={mode === 'text' ? 'is-active' : ''} onClick={() => { setMode('text'); submission.current = '' }}><FileText />Existing transcript</button></div>
     {mode === 'audio' ? <label className={`mi-dropzone ${dragging ? 'is-dragging' : ''}`} onDragOver={event => { event.preventDefault(); if (!busy) setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); if (!busy) chooseFile(event.dataTransfer.files[0]) }}><input ref={fileInput} type="file" accept=".mp3,.wav,.m4a,.webm,.caf" aria-label="Choose a recording" onChange={event => chooseFile(event.target.files?.[0])} /><Upload /><strong>{file ? file.name : 'Choose a recording or drop it here'}</strong><span>{file ? size(file.size) : 'MP3, WAV, M4A, WebM or CAF'}</span></label> : <Textarea aria-label="Meeting transcript" rows={6} placeholder="Paste the conversation here…" value={transcript} onChange={event => { setTranscript(event.target.value); submission.current = '' }} />}
-    <div className="mi-form-columns"><label>Audio language<select value={language} onChange={event => { setLanguage(event.target.value); submission.current = '' }}><option value="kk_ru">Қазақша + русский</option><option value="en">English</option><option value="auto">Auto detect</option></select></label><label>Report language<select value={outputLanguage} onChange={event => { setOutputLanguage(event.target.value); submission.current = '' }}><option value="same">Same as conversation</option><option value="kk">Қазақша</option><option value="ru">Русский</option><option value="en">English</option></select></label></div>
+    <div className="mi-form-columns"><label>Audio language<select value={language} onChange={event => { setLanguage(event.target.value); submission.current = '' }}><option value="kk_ru">Қазақша + русский (auto)</option><option value="kk">Қазақша</option><option value="ru">Русский</option><option value="en">English</option><option value="auto">Auto detect</option></select></label><label>Report language<select value={outputLanguage} onChange={event => { setOutputLanguage(event.target.value); submission.current = '' }}><option value="same">Same as conversation</option><option value="kk">Қазақша</option><option value="ru">Русский</option><option value="en">English</option></select></label></div>
+    {mode === 'audio' && <label>Names and terms (optional)<Input value={vocabulary} maxLength={400} placeholder="Timur, Radxa, Carelink" onChange={event => { setVocabulary(event.target.value); submission.current = '' }} /><small>Spelling hints for recognition. Check names against the recording.</small></label>}
     {mode === 'audio' && <label className="mi-checkbox"><input type="checkbox" checked={diarization && diarizationAvailable !== false} disabled={diarizationAvailable === false} onChange={event => { setDiarization(event.target.checked); submission.current = '' }} /><span>Separate speakers<small>{diarizationAvailable === false ? 'Speaker separation is not available on the Mac.' : 'Uses the diarization models on your Mac.'}</small></span></label>}
     </fieldset>
     {busy && <div className="mi-upload-progress" role="status"><div><span>{percent >= 100 ? 'Saving to the station…' : 'Uploading to the station…'}</span><span>{percent}%</span></div><progress value={percent} max={100} aria-label="Upload progress" /></div>}
@@ -233,7 +235,7 @@ function RecordDialog({ open, onOpenChange, config, diarizationAvailable, onCrea
     event.preventDefault(); setBusy(true); setError('')
     try { onCreated(await startRecording(config, meetingTitle.trim(), language, diarization && diarizationAvailable !== false)); onOpenChange(false); setMeetingTitle('') } catch (cause) { setError(message(cause)) } finally { setBusy(false) }
   }
-  return <Dialog open={open} onOpenChange={value => { if (!busy) onOpenChange(value) }}><DialogContent className="mi-dialog" showCloseButton={!busy}><DialogHeader><DialogTitle>Record on Radxa</DialogTitle><DialogDescription>Use the microphone connected to the station.</DialogDescription></DialogHeader><form className="mi-form" onSubmit={event => void record(event)}><fieldset disabled={busy}><label htmlFor="mi-record-title">Meeting title</label><Input id="mi-record-title" required maxLength={200} placeholder="e.g. Team check-in" value={meetingTitle} onChange={event => setMeetingTitle(event.target.value)} /><label>Audio language<select value={language} onChange={event => setLanguage(event.target.value)}><option value="kk_ru">Қазақша + русский</option><option value="en">English</option><option value="auto">Auto detect</option></select></label><label className="mi-checkbox"><input type="checkbox" checked={diarization && diarizationAvailable !== false} disabled={diarizationAvailable === false} onChange={event => setDiarization(event.target.checked)} /><span>Separate speakers<small>{diarizationAvailable === false ? 'Speaker separation is not available on the Mac.' : 'Uses the diarization models on your Mac.'}</small></span></label><div className="mi-record-source"><strong>Station microphone</strong><span>Connected to Radxa Cubie A7A</span></div></fieldset><ErrorText error={error} /><Button type="submit" disabled={busy || !meetingTitle.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Mic />}Start recording</Button></form></DialogContent></Dialog>
+  return <Dialog open={open} onOpenChange={value => { if (!busy) onOpenChange(value) }}><DialogContent className="mi-dialog" showCloseButton={!busy}><DialogHeader><DialogTitle>Record on Radxa</DialogTitle><DialogDescription>Use the microphone connected to the station.</DialogDescription></DialogHeader><form className="mi-form" onSubmit={event => void record(event)}><fieldset disabled={busy}><label htmlFor="mi-record-title">Meeting title</label><Input id="mi-record-title" required maxLength={200} placeholder="e.g. Team check-in" value={meetingTitle} onChange={event => setMeetingTitle(event.target.value)} /><label>Audio language<select value={language} onChange={event => setLanguage(event.target.value)}><option value="kk_ru">Қазақша + русский (auto)</option><option value="kk">Қазақша</option><option value="ru">Русский</option><option value="en">English</option><option value="auto">Auto detect</option></select></label><label className="mi-checkbox"><input type="checkbox" checked={diarization && diarizationAvailable !== false} disabled={diarizationAvailable === false} onChange={event => setDiarization(event.target.checked)} /><span>Separate speakers<small>{diarizationAvailable === false ? 'Speaker separation is not available on the Mac.' : 'Uses the diarization models on your Mac.'}</small></span></label><div className="mi-record-source"><strong>Station microphone</strong><span>Connected to Radxa Cubie A7A</span></div></fieldset><ErrorText error={error} /><Button type="submit" disabled={busy || !meetingTitle.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Mic />}Start recording</Button></form></DialogContent></Dialog>
 }
 
 function RecordingClock({ started }: { started?: string }) {
@@ -254,12 +256,12 @@ function MeetingDetail({ job, config, connected, onError, onRetry, onCancel, bus
   const [audioURL, setAudioURL] = useState('')
   const [audioLoading, setAudioLoading] = useState(false)
   const [audioError, setAudioError] = useState('')
+  const [audioRetry, setAudioRetry] = useState(0)
   const [exporting, setExporting] = useState(false)
   const [format, setFormat] = useState<'json' | 'csv' | 'pdf' | 'ics'>('pdf')
   const audio = useRef<HTMLAudioElement>(null)
-  const audioController = useRef<AbortController | null>(null)
-  const audioObject = useRef('')
   const segmentElements = useRef(new Map<string, HTMLDivElement>())
+  const isRecording = job.stage === 'recording'
 
   useEffect(() => {
     if (job.stage !== 'completed') { setResult(undefined); return }
@@ -268,18 +270,21 @@ function MeetingDetail({ job, config, connected, onError, onRetry, onCancel, bus
     getResult(config, job.id).then(value => { if (!disposed) setResult(value) }).catch(cause => { if (!disposed) setResultError(message(cause)) }).finally(() => { if (!disposed) setLoading(false) })
     return () => { disposed = true }
   }, [config, job.id, job.stage, job.updated_at, reload])
-  useEffect(() => () => { audioController.current?.abort(); if (audioObject.current) URL.revokeObjectURL(audioObject.current) }, [])
-
-  async function fetchAudio() {
-    if (audioLoading || audioURL) return
-    setAudioLoading(true); setAudioError('')
-    const controller = new AbortController(); audioController.current = controller
-    try {
-      const blob = await loadAudio(config, job.id, controller.signal)
+  useEffect(() => {
+    setAudioURL(''); setAudioError(''); setAudioLoading(false)
+    if (!connected || job.source_kind !== 'audio' || isRecording) return
+    const controller = new AbortController()
+    let objectURL = ''
+    setAudioLoading(true)
+    loadAudio(config, job.id, controller.signal).then(blob => {
       if (controller.signal.aborted) return
-      const url = URL.createObjectURL(blob); audioObject.current = url; setAudioURL(url)
-    } catch (cause) { if (!controller.signal.aborted) setAudioError(message(cause)) } finally { if (!controller.signal.aborted) setAudioLoading(false) }
-  }
+      objectURL = URL.createObjectURL(blob)
+      setAudioURL(objectURL)
+    }).catch(cause => { if (!controller.signal.aborted) setAudioError(message(cause)) })
+      .finally(() => { if (!controller.signal.aborted) setAudioLoading(false) })
+    return () => { controller.abort(); if (objectURL) URL.revokeObjectURL(objectURL) }
+  }, [config, connected, job.id, job.source_kind, isRecording, audioRetry])
+
   function seek(seconds: number | null | undefined) {
     if (seconds == null || !audio.current) return
     audio.current.currentTime = seconds
@@ -307,6 +312,7 @@ function MeetingDetail({ job, config, connected, onError, onRetry, onCancel, bus
   const verifiedActions = result?.protocol.action_items.filter(isVerified) || []
   const verifiedQuestions = result?.protocol.open_questions.filter(isVerified) || []
   const verifiedRisks = result?.protocol.risks.filter(isVerified) || []
+  const noFindings = result && ![...result.protocol.topics, ...result.protocol.decisions, ...result.protocol.action_items, ...result.protocol.open_questions, ...result.protocol.risks].length
   const reviewItems = result ? [
     ...result.protocol.topics.filter(item => !isVerified(item)).map(item => ({ kind: 'Topic', text: `${item.title}: ${item.text}`, item })),
     ...result.protocol.decisions.filter(item => !isVerified(item)).map(item => ({ kind: 'Decision', text: item.text, item })),
@@ -325,13 +331,14 @@ function MeetingDetail({ job, config, connected, onError, onRetry, onCancel, bus
     {job.error_message && <div className="mi-job-error" role="status"><AlertCircle /><div><strong>{job.error_code === 'ENGINE_OFFLINE' ? 'Waiting for the Mac engine' : 'Processing needs attention'}</strong><p>{job.error_message}</p></div>{(job.stage === 'failed' || job.stage === 'cancelled') && <Button variant="outline" size="sm" disabled={busy || !connected} onClick={onRetry}><RefreshCw />Retry</Button>}</div>}
     {(job.stage === 'failed' || job.stage === 'cancelled') && !job.error_message && <div className="mi-job-error"><AlertCircle /><span>{job.stage === 'cancelled' ? 'Processing was cancelled. Your source is still saved.' : 'Processing failed. Your source is still saved.'}</span><Button variant="outline" size="sm" disabled={busy || !connected} onClick={onRetry}><RefreshCw />Retry</Button></div>}
     {processing && <div className="mi-processing"><div><Loader2 className="animate-spin" /><strong>{stageNames[job.stage]}</strong><Button variant="ghost" size="sm" disabled={busy || !connected} onClick={onCancel}>Cancel processing</Button></div><div className="mi-processing-track" aria-label={`Processing stage: ${stageNames[job.stage]}`}>{stages.filter(stage => stage !== 'diarizing' || job.manifest?.diarization).map(stage => <span key={stage} className={stages.indexOf(stage) <= stages.indexOf(job.stage) ? 'is-done' : ''} />)}</div><p>{job.stage === 'queued' ? 'Your source is saved. The Mac processes one meeting at a time.' : 'Working locally on your Mac. You can leave this page and return to the archive.'}</p></div>}
-    {job.source_kind === 'audio' && job.stage !== 'recording' && <div className="mi-audio"><div className="mi-audio-top"><div><strong>Original recording</strong><small>{job.station?.filename || 'Saved on the station'}</small></div>{!audioURL && <Button variant="outline" size="sm" disabled={audioLoading || !connected} onClick={() => void fetchAudio()}>{audioLoading && <Loader2 className="animate-spin" />}{audioLoading ? 'Loading…' : 'Load audio'}</Button>}</div>{audioURL && <audio ref={audio} src={audioURL} controls preload="metadata" aria-label="Meeting recording" onError={() => setAudioError('This browser cannot play this audio format. The original recording remains saved.')} />}<ErrorText error={audioError} /></div>}
+    {job.source_kind === 'audio' && !isRecording && <div className="mi-audio"><div className="mi-audio-top"><div><strong>Original recording</strong><small>{job.station?.filename || 'Saved on the station'}</small></div>{audioLoading && <small role="status">Loading recording…</small>}</div>{audioURL && <audio ref={audio} src={audioURL} controls preload="metadata" aria-label="Meeting recording" onError={() => setAudioError('This browser cannot play this audio format. The original recording remains saved.')} />}<ErrorText error={audioError} />{audioError && <Button variant="outline" size="sm" disabled={!connected || audioLoading} onClick={() => setAudioRetry(value => value + 1)}>Retry recording</Button>}</div>}
 
     <div className="mi-tabs" role="tablist" aria-label="Meeting content"><button id="mi-tab-overview" role="tab" aria-selected={tab === 'overview'} aria-controls="mi-overview" tabIndex={tab === 'overview' ? 0 : -1} onKeyDown={tabKeys} onClick={() => setTab('overview')}>Overview</button><button id="mi-tab-transcript" role="tab" aria-selected={tab === 'transcript'} aria-controls="mi-transcript" tabIndex={tab === 'transcript' ? 0 : -1} onKeyDown={tabKeys} onClick={() => setTab('transcript')}>Transcript <span>{segments.length}</span></button></div>
     {loading && <div className="mi-detail-empty" role="status"><Loader2 className="animate-spin" /><strong>Opening the meeting report…</strong></div>}
     {resultError && <div className="mi-detail-empty" role="alert"><AlertCircle /><p>{resultError}</p><Button variant="outline" onClick={() => setReload(value => value + 1)}>Try again</Button></div>}
     {!loading && !result && !resultError && <div className="mi-detail-empty"><strong>{job.stage === 'recording' ? 'Recording in progress' : 'Report pending'}</strong><p>{job.stage === 'recording' ? 'Stop the recording to create the transcript and report.' : job.stage === 'failed' || job.stage === 'cancelled' ? 'Retry processing to generate the transcript and report.' : 'The transcript and report will appear when processing finishes.'}</p></div>}
     {result && <>
+      {(noFindings || Boolean(result.transcript.warnings?.length)) && <div className="mi-quality-notice" role="status"><strong>Report needs review</strong>{noFindings && <p>No structured meeting findings were extracted. Check the transcript and original recording before relying on this report.</p>}{result.transcript.warnings?.map(warning => <p key={warning}>{warning}</p>)}</div>}
       <div id="mi-overview" role="tabpanel" aria-labelledby="mi-tab-overview" hidden={tab !== 'overview'} className="mi-report">
         <ReportSection title="Summary"><div className="mi-summary">{result.protocol.executive_summary.length ? result.protocol.executive_summary.map((line, index) => {
           const reference = result.protocol.executive_summary_sources?.[index]
@@ -343,9 +350,9 @@ function MeetingDetail({ job, config, connected, onError, onRetry, onCancel, bus
         <ReportSection title="Action items" count={verifiedActions.length}>{verifiedActions.length ? <div className="mi-action-table-wrap" role="region" aria-label="Action items table" tabIndex={0}><table className="mi-action-table"><thead><tr><th scope="col">Owner</th><th scope="col">Task</th><th scope="col">Deadline</th><th scope="col">Priority</th></tr></thead><tbody>{verifiedActions.map(item => <tr key={item.id}><td><span className="mi-owner">{item.assignee || 'Unassigned'}</span></td><td><p>{item.task}</p><EvidenceView item={item} onJump={jump} /></td><td>{item.deadline_text || 'Not specified'}</td><td><span className={`mi-table-priority mi-priority-${item.priority}`}>{item.priority === 'not_specified' ? 'Not specified' : item.priority}</span></td></tr>)}</tbody></table></div> : <p className="mi-muted">No source-checked action items were found.</p>}</ReportSection>
         <div className="mi-report-columns"><ReportSection title="Open questions" count={verifiedQuestions.length}><ItemList items={verifiedQuestions} onJump={jump} empty="No source-checked open questions were found." /></ReportSection><ReportSection title="Risks" count={verifiedRisks.length}><ItemList items={verifiedRisks} onJump={jump} empty="No source-checked risks were found." /></ReportSection></div>
         {reviewItems.length > 0 && <ReportSection title="Needs review" count={reviewItems.length}><div className="mi-items">{reviewItems.map(({ kind, text, item }) => <article className="mi-report-item" key={item.id}><small className="mi-review-kind">{kind}</small><p>{text}</p><EvidenceView item={item} onJump={jump} /></article>)}</div></ReportSection>}
-        <p className="mi-report-footnote">The report includes source-checked items. Failed source checks remain in Needs review.</p>
+        <p className="mi-report-footnote">The report includes source-checked items. Items needing an audio or source check remain in Needs review.</p>
       </div>
-      <div id="mi-transcript" role="tabpanel" aria-labelledby="mi-tab-transcript" hidden={tab !== 'transcript'} className="mi-transcript"><label className="mi-search"><Search /><input aria-label="Search this transcript" type="search" placeholder="Search this transcript…" value={query} onChange={event => setQuery(event.target.value)} /></label>{segments.length ? <><div className="mi-transcript-rows">{filtered.map(segment => <div key={segment.id} ref={element => { if (element) segmentElements.current.set(segment.id, element); else segmentElements.current.delete(segment.id) }} tabIndex={-1} className={`mi-segment ${highlight.includes(segment.id) ? 'is-highlighted' : ''}`}><div className="mi-segment-meta"><span className={`mi-speaker mi-speaker-${segment.speaker ? speakers.indexOf(segment.speaker) % 4 : 0}`}>{segment.speaker ? `Speaker ${speakers.indexOf(segment.speaker) + 1}` : 'Speaker unknown'}</span>{segment.start != null && <button className="mi-timestamp" title={audioURL ? 'Play from this timestamp' : 'Load the recording to listen from this timestamp'} disabled={!audioURL} onClick={() => seek(segment.start)}>{time(segment.start)}{segment.end != null ? ` – ${time(segment.end)}` : ''}</button>}</div><p dir="auto">{segment.text}</p></div>)}</div>{!filtered.length && <p className="mi-muted mi-no-matches">No transcript passages match this search.</p>}</> : <p className="mi-raw-transcript" dir="auto">{result.transcript.raw_text || 'No speech was found in this recording.'}</p>}<p className="mi-report-footnote">Speaker labels distinguish voices; they do not identify people.</p></div>
+      <div id="mi-transcript" role="tabpanel" aria-labelledby="mi-tab-transcript" hidden={tab !== 'transcript'} className="mi-transcript"><label className="mi-search"><Search /><input aria-label="Search this transcript" type="search" placeholder="Search this transcript…" value={query} onChange={event => setQuery(event.target.value)} /></label>{segments.length ? <><div className="mi-transcript-rows">{filtered.map(segment => <div key={segment.id} ref={element => { if (element) segmentElements.current.set(segment.id, element); else segmentElements.current.delete(segment.id) }} tabIndex={-1} className={`mi-segment ${highlight.includes(segment.id) ? 'is-highlighted' : ''}`}><div className="mi-segment-meta"><span className={`mi-speaker mi-speaker-${segment.speaker ? speakers.indexOf(segment.speaker) % 4 : 0}`}>{segment.speaker ? `Speaker ${speakers.indexOf(segment.speaker) + 1}` : 'Speaker unknown'}</span>{segment.start != null && <button className="mi-timestamp" title={audioURL ? 'Play from this timestamp' : 'Recording is loading'} disabled={!audioURL} onClick={() => seek(segment.start)}>{time(segment.start)}{segment.end != null ? ` – ${time(segment.end)}` : ''}</button>}</div><p dir="auto">{segment.tokens?.length && segment.tokens.map(token => token.text).join('').trim() === segment.text.trim() ? segment.tokens.map((token, index) => token.probability < 0.6 && /[\p{L}\p{N}]/u.test(token.text) ? <mark key={index} className="mi-uncertain-word" title="Low recognition confidence; check the audio">{token.text}</mark> : token.text) : segment.text}</p>{segment.needs_review && <small className="mi-muted">Check audio</small>}</div>)}</div>{!filtered.length && <p className="mi-muted mi-no-matches">No transcript passages match this search.</p>}</> : <p className="mi-raw-transcript" dir="auto">{result.transcript.raw_text || 'No speech was found in this recording.'}</p>}<p className="mi-report-footnote">Highlighted text has low recognition confidence; unmarked text can also be wrong. Speaker labels distinguish voices, not identities.</p></div>
     </>}
   </div>
 }

@@ -9,7 +9,7 @@ from xml.sax.saxutils import escape
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -97,7 +97,7 @@ def _ics_fold(line: str) -> str:
     return "\r\n ".join(chunks)
 
 
-def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = None) -> None:
+def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = None, transcript: Transcript | None = None) -> None:
     font_name = _pdf_font(font_path)
     styles = getSampleStyleSheet()
     for style in styles.byName.values():
@@ -107,6 +107,17 @@ def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = No
         story.append(Paragraph("Meeting date: " + protocol.metadata.meeting_date.isoformat(), styles["BodyText"]))
     if protocol.metadata.timezone:
         story.append(Paragraph("Timezone: " + escape(protocol.metadata.timezone), styles["BodyText"]))
+    findings = protocol.decisions + protocol.topics + protocol.open_questions + protocol.action_items + protocol.risks
+    if not findings:
+        story.append(Paragraph("Report needs review", styles["Heading2"]))
+        story.append(Paragraph("No structured meeting findings were extracted. This is not a complete meeting protocol. Check the transcript and original recording before relying on this report.", styles["BodyText"]))
+    if transcript and transcript.warnings:
+        story.append(Paragraph("Transcription needs review", styles["Heading2"]))
+        story.extend(Paragraph(escape(warning), styles["BodyText"]) for warning in transcript.warnings)
+    if not findings:
+        _append_transcript(story, styles, transcript, new_page=False)
+        SimpleDocTemplate(str(path), pagesize=A4, leftMargin=36, rightMargin=36).build(story)
+        return
     sections = [
         ("Executive summary", protocol.executive_summary),
         ("Decisions", [_qualified(item.text, item) for item in protocol.decisions]),
@@ -116,7 +127,10 @@ def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = No
     ]
     for title, lines in sections:
         story.append(Paragraph(title, styles["Heading2"]))
-        story.extend(Paragraph(f"• {escape(line)}", styles["BodyText"]) for line in lines)
+        if lines:
+            story.extend(Paragraph(f"• {escape(line)}", styles["BodyText"]) for line in lines)
+        else:
+            story.append(Paragraph("No source-checked summary is available." if title == "Executive summary" else "No items were extracted for this section.", styles["BodyText"]))
         story.append(Spacer(1, 8))
     story.append(Paragraph("Action items", styles["Heading2"]))
     rows = [["Assignee", "Task", "Deadline", "Priority"]]
@@ -128,12 +142,14 @@ def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = No
     ])
     table = Table(rows, repeatRows=1, colWidths=[90, 250, 90, 70])
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#DCEAF7")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eeeeec")),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("FONTNAME", (0, 0), (-1, -1), font_name),
     ]))
     story.append(table)
+    if not protocol.action_items:
+        story.append(Paragraph("No action items were extracted. Owners and deadlines have not been invented.", styles["BodyText"]))
     story.append(Spacer(1, 12))
     story.append(Paragraph("Evidence references", styles["Heading2"]))
     for index, source in enumerate(protocol.executive_summary_sources, 1):
@@ -144,7 +160,25 @@ def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = No
         if item.evidence.start is not None and item.evidence.end is not None:
             citation += " [{:.2f}–{:.2f}s]".format(item.evidence.start, item.evidence.end)
         story.append(Paragraph(escape(citation), styles["BodyText"]))
+    _append_transcript(story, styles, transcript, new_page=True)
     SimpleDocTemplate(str(path), pagesize=A4, leftMargin=36, rightMargin=36).build(story)
+
+
+def _append_transcript(story, styles, transcript, new_page):
+    if transcript is not None:
+        story.extend([PageBreak() if new_page else Spacer(1, 14), Paragraph("Transcript", styles["Heading1"]),
+            Paragraph("Speech recognition output for review. It may contain errors; timestamps refer to the original recording.", styles["BodyText"]), Spacer(1, 10)])
+        for warning in transcript.warnings:
+            story.append(Paragraph(escape(warning), styles["BodyText"]))
+        for segment in transcript.segments:
+            prefix = "[{:.2f}–{:.2f}s] ".format(segment.start, segment.end) if segment.start is not None and segment.end is not None else ""
+            if segment.speaker:
+                prefix += segment.speaker + ": "
+            if segment.needs_review:
+                prefix += "[Check audio] "
+            story.append(Paragraph(escape(prefix + segment.text), styles["BodyText"]))
+        if not transcript.segments:
+            story.append(Paragraph(escape(transcript.raw_text or "No speech was recognized. Check the recording and input audio source."), styles["BodyText"]))
 
 
 def _qualified(text, item):

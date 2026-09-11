@@ -5,10 +5,11 @@ its Debian 11 system. Debian 12, Chromium, Xvfb, PulseAudio, FFmpeg and noVNC li
 under `/opt/meeting-browser/rootfs`. Debian packages are authenticated against
 signed archive metadata. The host package database and libc are not upgraded.
 
-The browser is an ordinary meeting participant: a user or organizer may need to
-sign in and admit it. Platform support must be verified with a real test meeting.
-Installing this component does not join or record a meeting. Online meetings
-require internet connectivity; audio processing can remain local on the Mac.
+The browser is an ordinary meeting participant. The station's Join & record flow
+enters its name, disables camera/microphone, requests admission and records the
+meeting automatically. An organizer may need to admit it; account requirements
+remain provider-controlled. Online meetings require internet connectivity;
+audio processing stays local on the Mac.
 
 ## Provision and activate
 
@@ -57,6 +58,17 @@ PulseAudio's private Unix socket is
 source, `meeting_silence.monitor`, to avoid feeding meeting playback back into
 the call. The controller runs FFmpeg inside the rootfs and finalizes each WAV
 with SIGINT before handing it to the station for processing.
+
+Authenticated `POST /v1/join` accepts a supported meeting URL and recording UUID.
+The controller starts capture before requesting admission, then runs the bounded
+local `join.js` interaction loop through CDP. It distinguishes waiting, joined,
+blocked and ended states. Admission is recognized from call controls; merely
+navigating is never success. A rejected or timed-out join retains a failed capture.
+The station bridge polls finalized recordings and imports them without an open
+browser dashboard. The provider can still require initial account setup or human
+verification; these are reported instead of bypassed. The join timeout is five
+minutes. Chromium permits unattended audio playback in its isolated profile;
+this setting does not affect the employee's browser.
 
 ## Verification and rollback
 

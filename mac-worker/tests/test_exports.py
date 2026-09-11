@@ -94,3 +94,31 @@ def test_ics_contains_only_source_checked_actions_and_explicit_dates(tmp_path):
     assert 'Owner: Айбек' in text and 'DUE;VALUE=DATE:20260914' in text
     assert 'PRIORITY:3' in text and 'Spoken deadline: next week' in text
     assert 'Invented task' not in text
+
+
+def test_empty_protocol_pdf_explains_failure_and_preserves_timestamped_transcript(tmp_path):
+    from pypdf import PdfReader
+    protocol = MeetingProtocol(metadata=MeetingMetadata(title='Unclear recording'))
+    transcript = Transcript(model='fixture', language='kk', raw_text='Есеп дайын.',
+        warnings=['Repeated recognition output detected.'],
+        segments=[TranscriptSegment(id='s1', text='Есеп дайын.', start=12.5, end=15, needs_review=True)])
+    path = tmp_path / 'report.pdf'
+    export_pdf(path, protocol, transcript=transcript)
+    pages = [page.extract_text() for page in PdfReader(path).pages]
+    assert len(pages) == 1
+    assert 'Report needs review' in pages[0]
+    assert 'No structured meeting findings were extracted.' in pages[0]
+    assert 'Repeated recognition output detected.' in pages[0]
+    assert 'Executive summary' not in pages[0]
+    assert 'Transcript' in pages[0]
+    assert '[12.50–15.00s]' in pages[0]
+    assert '[Check audio] Есеп дайын.' in pages[0]
+
+
+def test_no_speech_pdf_is_explicit_instead_of_exporting_empty_headings(tmp_path):
+    from pypdf import PdfReader
+    path = tmp_path / 'report.pdf'
+    export_pdf(path, MeetingProtocol(metadata=MeetingMetadata()), transcript=Transcript(model='fixture', raw_text='', segments=[]))
+    text = '\n'.join(page.extract_text() for page in PdfReader(path).pages)
+    assert 'No speech was recognized.' in text
+    assert 'No structured meeting findings were extracted.' in text

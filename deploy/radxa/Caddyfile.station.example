@@ -1,36 +1,31 @@
-# Direct LAN access for clients without mDNS or the board's local CA installed.
-# Restrict this entry point to the private demo LAN. Its traffic is unencrypted.
-# Update the literal address and Scriberr ALLOWED_ORIGINS if its DHCP lease changes.
-http://192.168.8.57 {
-	encode zstd gzip
-	header {
-		-Server
-		X-Robots-Tag "noindex, nofollow, noarchive"
-	}
-	handle_path /api/meeting-worker/* {
-		reverse_proxy 127.0.0.1:8766
-	}
-	handle {
-		reverse_proxy 127.0.0.1:8081 {
-			# Go retains SECURE_COOKIES=true for the HTTPS entry point below.
-			# Allow this HTTP origin to retain its own login/refresh cookie.
-			header_down Set-Cookie "(?i);[[:space:]]*Secure(;|$)" "$1"
-		}
-	}
+# Install this station's CA on each trusted client. Never bypass certificate
+# validation. Update the IP and issue a matching certificate if DHCP changes.
+{
+	auto_https disable_redirects
 }
 
-# Keep the board's existing hostname and Caddy local certificate authority.
 http:// {
-	redir https://radxa-cubie-a7a.local{uri} permanent
+	@get method GET HEAD
+	redir @get https://192.168.8.57{uri} 308
+	respond "Use HTTPS. Credentials and uploads are not accepted over HTTP." 426
 }
 
-radxa-cubie-a7a.local {
+https://192.168.8.57, radxa-cubie-a7a.local {
 	tls internal
 	encode zstd gzip
 	header {
 		-Server
 		X-Robots-Tag "noindex, nofollow, noarchive"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000"
+		Permissions-Policy "camera=(), geolocation=()"
 	}
+	# The authenticated station viewer supplies its own CSP for noVNC.
+	@app not path /api/meeting-worker/*
+	header @app Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+	@private path /api/*
+	header @private Cache-Control "no-store"
 	handle_path /api/meeting-worker/* {
 		reverse_proxy 127.0.0.1:8766
 	}

@@ -24,12 +24,13 @@ export default defineConfig(({ mode }) => {
     },
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: { navigateFallbackDenylist: [/^\/api\//] },
       includeAssets: station ? ['station-mark.svg'] : ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: station ? 'Meeting Station' : 'Scriberr',
         short_name: station ? 'Meeting Station' : 'Scriberr',
         description: station ? 'Private meeting transcripts, decisions and next steps' : 'Offline Audio Transcription',
-        theme_color: station ? '#14776b' : '#8936FF',
+        theme_color: station ? '#ef6c22' : '#8936FF',
         background_color: station ? '#f7f8f4' : '#2EC6FE',
         display: 'standalone',
         orientation: 'any',

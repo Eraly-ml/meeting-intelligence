@@ -3,6 +3,18 @@
 Tested on a Radxa Cubie A7A with 6 GB RAM and Debian 11, connected over the
 private LAN to an Apple M5 Mac with 16 GB unified memory.
 
+The current security/startup revision passes **102 worker/station tests**, the
+frontend production build, targeted ESLint, browser join fixtures and deployed
+Chrome checks for automatic audio loading, exports, session-only tokens and the
+encrypted viewer. An actual Cubie reboot recovered the archive, HTTPS website,
+Mac worker link and browser automatically in **80.745 seconds**, preserving a
+downloaded PDF byte-for-byte. See [SECURITY.md](SECURITY.md), [ACCURACY.md](ACCURACY.md)
+and [REQUIREMENTS.md](REQUIREMENTS.md) for current boundaries and quality gaps.
+
+The measurements below are historical runs before this revision. In particular,
+the old HTTP fallback and ignored-certificate test setup are no longer the active
+deployment. Do not use those historical descriptions as configuration instructions.
+
 ## Checks completed
 
 - 31 Mac worker tests, including the station-to-worker multipart contract,

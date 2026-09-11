@@ -7,7 +7,7 @@ This runbook describes the actual systemd deployment on the existing Debian 11 b
 | Device/service | Current configuration |
 |---|---|
 | Meeting station | Radxa Cubie A7A, 6 GB RAM, Debian 11 CLI |
-| Browser address (private demo LAN) | `http://192.168.8.57/meeting-intelligence` |
+| Browser address (private LAN, trusted station CA required) | `https://192.168.8.57/meeting-intelligence` |
 | HTTPS browser address | `https://radxa-cubie-a7a.local/meeting-intelligence` |
 | Radxa LAN address | `192.168.8.57` |
 | Mac worker | MacBook Air M5, 16 GB unified memory, `192.168.8.84:8765` |
@@ -15,9 +15,9 @@ This runbook describes the actual systemd deployment on the existing Debian 11 b
 | Station bridge | Radxa loopback, `127.0.0.1:8766` |
 | Go/embedded frontend | Radxa loopback, `127.0.0.1:8081` |
 
-These IPs are current LAN leases. Reserve them in the router or update the Mac bind address and `MI_STATION_WORKER_URL` when the network changes. The station requires a literal private IP for the Mac destination. The browser connects to the Radxa and never needs to enter a Mac IP. If the Radxa lease changes, also update the explicit HTTP address in the Caddy configuration and Go `ALLOWED_ORIGINS`.
+These IPs are current LAN leases. Reserve them in the router or update the Mac bind address and `MI_STATION_WORKER_URL` when the network changes. The station requires a literal private IP for the Mac destination. The browser connects to the Radxa and never needs to enter a Mac IP. If the Radxa lease changes, also update the HTTPS address in Caddy and Go `ALLOWED_ORIGINS`. Reissue the worker certificate when its IP changes; hostname verification must remain enabled.
 
-Caddy uses the board's existing local certificate authority. Clients must trust that authority to open HTTPS without a certificate prompt; distribute only its public root certificate. An mDNS-capable client should resolve `radxa-cubie-a7a.local` to the board. The explicit `http://192.168.8.57` entry point works without mDNS or certificate setup and does not redirect to HTTPS. It is an unencrypted fallback for the private demo LAN: login credentials, pairing tokens and meeting data travel over that LAN connection. Prefer the HTTPS hostname once its certificate is trusted. The IP address is not the configured HTTPS hostname.
+Caddy uses a private certificate authority created inside the encrypted archive. This Mac trusts its public root for TLS. Other clients must install that public root through a trusted channel; never bypass certificate validation or distribute private keys. Both the IP and mDNS hostname support HTTPS. HTTP GET requests redirect to HTTPS; HTTP writes return 426. There is no plaintext login or upload endpoint. See [security and key recovery](SECURITY.md).
 
 If Chrome shows `ERR_ADDRESS_UNREACHABLE` while a direct request from the Mac
 reaches the station, check **System Settings → Privacy & Security → Local
@@ -80,9 +80,9 @@ This helper uses the private workspace `.local/` environment and installed model
 
 The provisioned launcher applies `deploy/mac/inference-local.sb`: the worker and Ollama can initiate direct IP connections only to this Mac, including its own LAN interfaces. The Radxa can still connect to the worker and receive responses. This supplements application URL restrictions and offline model settings; it is not a blanket DNS/IPC audit. Apple's `sandbox-exec` mechanism is deprecated, so validate it after macOS upgrades. The ordinary manual worker command does not apply this extra process policy.
 
-The Mac configuration uses a private worker token, a LAN bind address for port 8765, local ffmpeg/Whisper/ONNX paths, and `MI_OLLAMA_URL=http://127.0.0.1:11434`. Ollama uses `OLLAMA_NO_CLOUD=1`, one parallel request and one loaded model. Runtime model downloads are disabled. Keep the Mac awake while processing; the board retains queued sources if the Mac sleeps or disconnects.
+The Mac configuration uses mutual TLS with client certificate verification, a private worker token, a LAN bind address for port 8765, local ffmpeg/Whisper/ONNX paths, and `MI_OLLAMA_URL=http://127.0.0.1:11434`. Ollama uses `OLLAMA_NO_CLOUD=1`, one parallel request and one loaded model. Runtime model downloads are disabled. Keep the Mac awake while processing; the board retains queued sources if the Mac sleeps or disconnects.
 
-The selected ASR model is multilingual whisper.cpp large-v3-turbo q5 at `models/whisper/ggml-large-v3-turbo-q5_0.bin`. Base remains downloaded as a smaller fallback. Turbo corrected a name error in the local comparison; see [validation](VALIDATION.md) for timings and limits. Qwen3.5 4B runs locally on the M5. Other optional ASR profiles still need comparison on this hardware. Speaker separation is available only when the local diarization dependencies and models are present.
+The ASR default is full multilingual Whisper large-v3. Explicitly English jobs use large-v3-turbo q5, which scored better on the available English fixture. Both models are preinstalled; no runtime download or cloud fallback occurs. The [accuracy report](ACCURACY.md) documents the comparison and its limits. Qwen3.5 4B and optional Sherpa diarization run locally on the M5.
 
 ## Board installation and configuration
 
@@ -102,11 +102,11 @@ sudo /path/to/staged-release/deploy/radxa/install-station.sh /path/to/staged-rel
 | `/var/lib/meeting-intelligence` | Scriberr account database and local session state |
 | `/var/lib/meeting-station` | Original sources, SQLite queue, results and exports |
 
-`scriberr.env` must set `MI_STATION_MODE=true`, bind the Go service to `127.0.0.1:8081`, retain `SECURE_COOKIES=true`, and set `ALLOWED_ORIGINS=https://radxa-cubie-a7a.local,http://192.168.8.57`. `station.env` must bind to `127.0.0.1:8766`, use `/var/lib/meeting-station`, and set `MI_STATION_WORKER_URL=http://192.168.8.84:8765`. `MI_STATION_WORKER_TOKEN` matches the Mac's `MI_API_TOKEN`; `MI_STATION_TOKEN` is a different random token shared with station browsers. Keep the actual values in the private environment files, not in this repository or URLs. Update `MI_BIND_HOST` and `MI_STATION_WORKER_URL` together if DHCP assigns the Mac a different address.
+`scriberr.env` must set `MI_STATION_MODE=true`, bind the Go service to `127.0.0.1:8081`, retain `SECURE_COOKIES=true`, and set `ALLOWED_ORIGINS=https://radxa-cubie-a7a.local,https://192.168.8.57`. `station.env` must bind to `127.0.0.1:8766`, use `/var/lib/meeting-station`, and set `MI_STATION_WORKER_URL=https://192.168.8.84:8765`. `MI_STATION_WORKER_TOKEN` matches the Mac's `MI_API_TOKEN`; `MI_STATION_TOKEN` is a different random token shared with station browsers. Keep the actual values in the private environment files, not in this repository or URLs. Update `MI_BIND_HOST` and `MI_STATION_WORKER_URL` together if DHCP assigns the Mac a different address.
 
 The service units are [meeting-station.service](../deploy/radxa/meeting-station.service) and [scriberr-station.service](../deploy/radxa/scriberr-station.service). Both run as `meeting-station` with separate state directories. The bridge user also belongs to `audio` for an attached ALSA microphone. Recording availability requires `arecord` and an actual capture device; selecting Record in the UI starts the Radxa microphone, not the browser microphone.
 
-The [Caddy configuration](../deploy/radxa/Caddyfile.station.example) retains `radxa-cubie-a7a.local` and its existing internal CA, and adds the explicit private HTTP origin above. `/api/meeting-worker/*` goes to the bridge with its prefix removed. Other browser requests go to the Go service. Only the HTTP site's Go proxy removes the `Secure` cookie attribute so browser login and refresh work on that origin; HTTPS cookies keep it. Caddy supports response header replacements through [`header_down`](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#headers). The station scripts retain Carelink's files, networking and SSH configuration.
+The [Caddy configuration](../deploy/radxa/Caddyfile.station.example) serves the IP and mDNS hostname over HTTPS with the station CA. HTTP reads redirect and HTTP writes are refused. `/api/meeting-worker/*` goes to the bridge with its prefix removed; other browser requests go to Go. Cookies retain Secure attributes. Caddy keys, the browser profile and station data are encrypted; [SECURITY.md](SECURITY.md) describes the key-based SSH access and vault lifecycle.
 
 After installation and configuration checks, run the staged activation script as root on the board. Inspect service status without printing secrets:
 
@@ -116,7 +116,30 @@ sudo systemctl status meeting-station.service scriberr-station.service caddy.ser
 sudo journalctl -u meeting-station.service -u scriberr-station.service -n 60 --no-pager
 ```
 
-Open either configured browser address, create or use the Scriberr station account, then pair the meeting archive with the **station token**. HTTP and HTTPS have separate browser sessions, so sign in and pair again when changing origins. Pairing checks the authenticated capabilities endpoint. Public `/health` endpoints report process liveness only. The browser's Connection control can disconnect its tab session.
+Open either configured HTTPS address, use the station account, then pair the meeting archive with the **station token** from `.local/station-secrets.json`. Pairing checks the authenticated capabilities endpoint. Public `/health` endpoints report process liveness only. The browser's Connection control can disconnect its tab session.
+
+## Automatic startup
+
+The installed Mac LaunchAgent `com.meeting-intelligence.startup` runs
+`scripts/station-vault.py watch`. It checks the pinned SSH host every ten seconds,
+sends the vault key on stdin when needed, and starts the archive, web server,
+worker bridge and meeting browser. No vault key is stored on the board. The Mac
+must complete FileVault login and remain awake on the LAN. The agent uses
+`caffeinate -i` to prevent idle sleep; lid closure and deliberate sleep still stop
+Mac availability. The existing worker and Ollama agents also start at login.
+
+The template is [com.meeting-intelligence.startup.plist.example](../deploy/mac/com.meeting-intelligence.startup.plist.example).
+The installed copy is in `~/Library/LaunchAgents/`; private logs are under
+`.local/logs/startup*.log`. A complete board reboot recovered the authenticated
+website, browser, encrypted archive and Mac connection in **80.745 seconds**
+without intervention. This measurement includes reboot/shutdown and readiness;
+it is not an instant-start claim.
+
+`python3 scripts/station-vault.py lock` deliberately pauses automatic unlocking
+across reboots. `python3 scripts/station-vault.py unlock` resumes it. The board's
+nonsecret `/opt/meeting-intelligence/autostart-enabled` marker authorizes the
+watcher; the Carelink restoration script removes it. Do not remove the pause
+marker just to inspect a deliberately locked archive.
 
 ## Online meeting browser
 
@@ -124,9 +147,15 @@ The optional [meeting-browser deployment](../deploy/meeting-browser/README.md) i
 
 Set `MI_BROWSER_TOKEN` in `/opt/meeting-browser/browser.env` and the matching `MI_STATION_BROWSER_TOKEN` in the station environment. Use a different random token from the station and Mac tokens. The controller, DevTools, VNC and relay ports stay on loopback. The station provides a narrowly scoped, short-lived HttpOnly viewer cookie; it does not put credentials in the viewer URL.
 
-In the station interface, choose **Join online meeting**, paste the link, and select **Open meeting on Radxa**. Complete joining through the displayed Radxa browser as **Meeting Station (recording)**, with its microphone and camera off. The host may need to admit the participant, and some meeting policies require Google/Microsoft/Zoom sign-in. Enter account credentials yourself in the remote browser; they are not part of the station pairing form. Use the trusted HTTPS station origin for account sign-in.
+In the station interface, choose **Join call**, paste the link, and select **Join & record**. The station enters **Meeting Station (recording)**, disables microphone/camera, requests admission and monitors the call. Capture starts before the request so admission cannot lose the first words. The host may need to admit the participant, and some policies require Google/Microsoft/Zoom sign-in. A provider-required account can be configured once in **Show station browser**, using the trusted HTTPS station origin. Account credentials never belong in the station pairing field.
 
-After admission, select **Start meeting recording**. When finished, **Stop & process meeting** finalizes the full incoming-audio WAV and queues Mac processing. Leave the call using the meeting platform's own controls. A disconnected viewer does not stop recording. **Reconnect browser view** renews access; **Finish saved recording** retries an interrupted archive import. Capture is bounded to four hours or the configured size limit and one browser call at a time.
+When the call ends, the controller finalizes the WAV and the station imports it automatically, including when the UI is closed. **Leave & process** ends it earlier. A failed join is retained as a failed capture and does not generate a normal meeting report. Interrupted imports are retried in the background. The join timeout is five minutes; capture is bounded to four hours or the configured size limit and one browser call at a time.
+
+Automatic entry and admission were observed on the supplied Google Meet link:
+the participant name was visible, the call had a Leave call control, and the
+camera/microphone controls offered to turn them on, confirming they were off.
+Zoom/Teams browser-entry controls passed isolated fixtures; live admission on
+those platforms remains to be tested.
 
 The browser join path needs internet access to the meeting platform. Transcription, diarization, Qwen and report generation remain local. Telegram is not required; it would be an optional internet-based control channel, not a way to join all meeting platforms.
 
@@ -150,12 +179,14 @@ Automated checks are available in `station/tests`, `mac-worker/tests`, and the G
 
 ## Restore Carelink after the hackathon
 
-The rollback script is [deploy/radxa/restore-carelink.sh](../deploy/radxa/restore-carelink.sh), copied to `/opt/meeting-intelligence/restore-carelink.sh` on the board. Run it there:
+The rollback script is [deploy/radxa/restore-carelink.sh](../deploy/radxa/restore-carelink.sh), copied to `/opt/meeting-intelligence/restore-carelink.sh` on the board. Unlock the station vault first using `python3 scripts/station-vault.py unlock` on the Mac. Run it there with the new private sudo credential:
 
 ```sh
 sudo /opt/meeting-intelligence/restore-carelink.sh
 ```
 
-It validates and restores the saved pre-takeover Caddy file, restores the captured Carelink gateway enabled/active state, and disables the two meeting station services plus the optional meeting-browser service. The existing Carelink code and data are used in place. Meeting recordings, browser profile and the hackathon installation are retained for export or another deployment; neither application is erased.
+It validates and restores the saved pre-takeover Caddy file, restores the captured Carelink gateway enabled/active state, and disables the two meeting station services plus the optional meeting-browser service. The existing Carelink code and data are used in place. The script also restores the original Caddy state and removes its station vault startup guard so Carelink can reboot without the Mac. SSH keeps its stronger key authentication; credentials are documented in [SECURITY.md](SECURITY.md). Meeting recordings, browser profile and the hackathon installation are retained for export or another deployment; neither application is erased.
 
 Check Carelink's original HTTPS interface and its gateway service after rollback. If the original board files or storage have been damaged independently, use the private consistent backup and its manifests for a separate recovery; the configuration rollback script does not perform disk-image restoration.
+
+Restoring the original Caddy state also restores its original certificate authority. This Mac may need to trust the original Carelink public CA again; the station CA is separate.

@@ -245,4 +245,5 @@ def create_app(config: Settings | None = None, pipeline_factory=Pipeline, start_
 def run():
     import uvicorn
     config = Settings()
-    uvicorn.run(create_app(config), host=config.bind_host, port=config.bind_port, workers=1)
+    uvicorn.run(create_app(config), host=config.bind_host, port=config.bind_port, workers=1,
+                **config.server_tls())

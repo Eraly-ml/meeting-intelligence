@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
+
+// Remove bearer tokens retained by older versions. Closing the tab now ends
+// its local session; the server refresh cookie remains HttpOnly and Secure.
+localStorage.removeItem('auth-storage');
 
 interface AuthState {
     token: string | null;
@@ -24,12 +28,13 @@ export const useAuthStore = create<AuthState>()(
             setInitialized: (initialized) => set({ isInitialized: initialized }),
             logout: () => {
                 set({ token: null, isAuthenticated: false });
-                localStorage.removeItem('auth-storage');
+                sessionStorage.removeItem('auth-storage');
                 // Optional: Call logout endpoint if needed, but side effects strictly in hooks/components usually better
             },
         }),
         {
             name: 'auth-storage',
+            storage: createJSONStorage(() => sessionStorage),
             partialize: (state) => ({ token: state.token }), // Only persist token
         }
     )

@@ -17,7 +17,7 @@ set +a
 .venv/bin/meeting-station
 ```
 
-Use a literal private LAN IP in `MI_STATION_WORKER_URL`. Public addresses, arbitrary DNS names, redirects, and environment HTTP proxies are refused. Both tokens must contain at least 16 characters. Set `MI_STATION_WORKER_TOKEN` to the Mac's `MI_API_TOKEN`. Use one process: a filesystem lock prevents competing workers from sharing the archive.
+Use a literal private LAN IP and HTTPS in `MI_STATION_WORKER_URL`, with the pinned CA, client certificate and client key paths from `.env.example`. LAN HTTP and incomplete TLS configuration are refused, as are public addresses, arbitrary DNS names, redirects and environment proxies. Both tokens must contain at least 16 characters. Set `MI_STATION_WORKER_TOKEN` to the Mac's `MI_API_TOKEN`. Use one process: a filesystem lock prevents competing workers from sharing the archive. The deployed data and credentials reside in an encrypted vault; see [security and recovery](../docs/SECURITY.md).
 
 After dependencies and model weights are installed, uploads, inference and reports need only the LAN. Joining Google Meet, Zoom or Teams requires internet access to that meeting provider. No external inference request is performed by this station.
 

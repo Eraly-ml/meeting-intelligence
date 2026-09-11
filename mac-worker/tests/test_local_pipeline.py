@@ -17,21 +17,35 @@ def config(tmp_path, **kwargs):
     return value
 
 
-def test_real_fake_executables(tmp_path):
+@pytest.mark.parametrize('vad', [False, True])
+def test_real_fake_executables(tmp_path, vad):
     ffmpeg, whisper = tmp_path / 'ffmpeg', tmp_path / 'whisper'
     ffmpeg.write_text('#!' + sys.executable + '\nimport sys,wave\nwith wave.open(sys.argv[-1],"wb") as w:\n w.setparams((1,2,16000,0,"NONE","not compressed"))\n w.writeframes(b"\\0" * 32000)\n')
-    whisper.write_text('#!' + sys.executable + '\nimport sys,json,pathlib\np=pathlib.Path(sys.argv[sys.argv.index("-of")+1]+".json")\np.write_text(json.dumps({"transcription":[{"text":"Есеп дайын","offsets":{"from":0,"to":900}}]}))\n')
+    whisper.write_text('#!' + sys.executable + '\nimport sys,json,pathlib\nassert sys.argv[sys.argv.index("-mc")+1] == "0"\nassert ("--vad" in sys.argv) == ' + repr(vad) + '\nif "--vad" in sys.argv: assert pathlib.Path(sys.argv[sys.argv.index("--vad-model")+1]).is_file()\np=pathlib.Path(sys.argv[sys.argv.index("-of")+1]+".json")\np.write_text(json.dumps({"transcription":[{"text":"Есеп дайын","offsets":{"from":0,"to":900}}]}))\n')
     ffmpeg.chmod(0o700)
     whisper.chmod(0o700)
     model, audio = tmp_path / 'model.bin', tmp_path / 'test.wav'
     model.write_bytes(b'fake-model')
     audio.write_bytes(b'fake-audio')
-    settings = config(tmp_path, ffmpeg_binary=str(ffmpeg), whisper_binary=str(whisper), whisper_model=str(model))
+    settings = config(tmp_path, ffmpeg_binary=str(ffmpeg), whisper_binary=str(whisper), whisper_model=str(model), whisper_vad_model=str(model) if vad else '')
     transcript = get_adapter('whisper-cpp', settings).transcribe(audio, 'auto')
     assert transcript.segments[0].text == 'Есеп дайын'
     assert transcript.segments[0].end == 0.9
     assert transcript.segments[0].speaker is None
     assert list((tmp_path / 'work').iterdir()) == []
+
+
+def test_missing_configured_vad_model_is_not_silently_ignored(tmp_path):
+    from meeting_worker.asr import local_audio_settings
+    from meeting_worker.local_audio import AudioProcessor, EngineUnavailable
+    model = tmp_path / 'model.bin'
+    model.write_bytes(b'fixture')
+    settings = config(tmp_path, ffmpeg_binary=sys.executable, whisper_binary=sys.executable,
+        whisper_model=str(model), whisper_vad_model=str(tmp_path / 'missing.bin'))
+    processor = AudioProcessor(local_audio_settings(settings))
+    assert processor.capabilities()['transcription']['ready'] is False
+    with pytest.raises(EngineUnavailable, match='whisper_vad_model'):
+        processor.transcribe(tmp_path / 'recording.wav', 'en')
 
 
 def test_generated_human_review_and_calendar_date_removed():

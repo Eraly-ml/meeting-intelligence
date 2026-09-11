@@ -52,6 +52,7 @@ fi
 mkdir -p "$browser_root/recordings" "$browser_root/run/meeting-browser" "$browser_root/opt/meeting-browser"
 chroot "$browser_root" chown -R 1996:1996 /var/lib/meeting-browser /run/meeting-browser /recordings
 install -m 755 "$browser_base/launch.sh" "$browser_root/opt/meeting-browser/launch.sh"
+install -m 644 "$browser_base/join.js" "$browser_root/opt/meeting-browser/join.js"
 chroot "$browser_root" dpkg-query -W > "$browser_base/packages.tsv"
 chroot "$browser_root" /usr/bin/chromium --version
 touch "$browser_base/provisioned"

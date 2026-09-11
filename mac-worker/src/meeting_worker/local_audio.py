@@ -68,8 +68,19 @@ def parse_whisper(payload, duration, turns):
         start = min(start, end)
         if len(text) > 8000:
             raise AudioError("Whisper segment exceeds the station transcript limit")
+        tokens = []
+        for token in item.get("tokens", []):
+            fragment, probability = token.get("text", ""), token.get("p")
+            if not fragment or fragment.startswith("[_") or fragment.startswith("<|"):
+                continue
+            if not isinstance(probability, (float, int)) or not math.isfinite(probability) or not 0 <= probability <= 1:
+                raise AudioError("Whisper returned invalid token probabilities")
+            tokens.append({"text": fragment, "probability": probability})
+        # A review heuristic, not a calibrated probability of correctness.
+        uncertain = any(token["probability"] < 0.6 and any(c.isalnum() for c in token["text"]) for token in tokens)
         result.append({"sequence": len(result) + 1, "start": start, "end": end,
-                       "speaker": speaker_for(start, end, turns), "text": text})
+                       "speaker": speaker_for(start, end, turns), "text": text,
+                       "tokens": tokens, "needs_review": uncertain})
     return result
 
 
@@ -81,6 +92,8 @@ class AudioProcessor:
         s = self.settings
         missing = [name for name, ready in (("whisper_binary", executable(s.whisper_binary)),
                    ("whisper_model", local_file(s.whisper_model)), ("ffmpeg_binary", executable(s.ffmpeg_binary))) if not ready]
+        if getattr(s, "whisper_vad_model", "") and not local_file(s.whisper_vad_model):
+            missing.append("whisper_vad_model")
         diarization_ready = (local_file(s.segmentation_model) and local_file(s.embedding_model)
                              and importlib.util.find_spec("sherpa_onnx") is not None
                              and importlib.util.find_spec("numpy") is not None)
@@ -109,8 +122,17 @@ class AudioProcessor:
         if duration <= 0 or duration > s.max_audio_seconds:
             raise AudioError("Recording is empty or exceeds the configured duration limit")
         output = directory / "whisper"
-        command([s.whisper_binary, "-m", s.whisper_model, "-f", str(wav), "-oj", "-of", str(output),
-                 "-l", language, "-t", "4", "-np", "-ml", "80"], directory, s.process_timeout)
+        arguments = [s.whisper_binary, "-m", s.whisper_model, "-f", str(wav), "-ojf", "-of", str(output),
+                     "-l", language, "-t", "4", "-np", "-ml", "80", "-sow", "-bs", "5", "-mc", "0"]
+        # Do not feed decoded text back into subsequent audio windows: an ASR
+        # mistake can otherwise condition later windows into a repetition loop.
+        if getattr(s, "whisper_prompt", "").strip():
+            arguments += ["--prompt", s.whisper_prompt.strip(), "--carry-initial-prompt"]
+        if getattr(s, "whisper_vad_model", ""):
+            if not local_file(s.whisper_vad_model):
+                raise EngineUnavailable("The configured local voice activity model is missing")
+            arguments += ["--vad", "--vad-model", s.whisper_vad_model]
+        command(arguments, directory, s.process_timeout)
         turns = []
         enabled = caps["diarization"]["ready"]
         if enabled:

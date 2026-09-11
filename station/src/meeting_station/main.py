@@ -91,9 +91,14 @@ def create_app(settings=None, mac=None, start_worker=True, browser=None):
         app.state.store, app.state.mac, app.state.recorder = store, remote, recorder
         app.state.worker = Worker(store, remote, settings)
         task = asyncio.create_task(app.state.worker.run()) if start_worker else None
+        capture_task = asyncio.create_task(app.state.browser_capture.run()) if start_worker else None
         try:
             yield
         finally:
+            if capture_task:
+                capture_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await capture_task
             if task:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):

@@ -25,6 +25,8 @@ def local_audio_settings(config: Settings, diarization: bool = False):
         ffmpeg_binary=shutil.which(config.ffmpeg_binary) or config.ffmpeg_binary,
         whisper_binary=shutil.which(config.whisper_binary) or config.whisper_binary,
         whisper_model=config.whisper_model,
+        whisper_prompt=config.whisper_prompt,
+        whisper_vad_model=config.whisper_vad_model,
         segmentation_model=config.segmentation_model if diarization else "",
         embedding_model=config.embedding_model if diarization else "",
         process_timeout=config.audio_timeout, max_audio_seconds=config.max_audio_seconds)
@@ -36,18 +38,44 @@ class WhisperCPPAdapter(ASRAdapter):
 
     def transcribe(self, audio_path: Path, language: str) -> Transcript:
         from .local_audio import AudioProcessor
+        model = self.config.whisper_model_en if language == "en" and self.config.whisper_model_en else self.config.whisper_model
+        settings = self.config.model_copy(update={"whisper_model": model})
         with tempfile.TemporaryDirectory(prefix="asr-", dir=self.config.data_dir / "work") as directory:
             source = Path(directory) / "source.wav"
             shutil.copyfile(audio_path, source)
-            output = AudioProcessor(local_audio_settings(self.config)).transcribe(source, language)
+            output = AudioProcessor(local_audio_settings(settings)).transcribe(source, language)
         segments = [TranscriptSegment(id="seg_{:05d}".format(item["sequence"]), start=item["start"],
-                                      end=item["end"], text=item["text"], language=language)
+                                      end=item["end"], text=item["text"], language=language,
+                                      tokens=item["tokens"], needs_review=item["needs_review"])
                     for item in output["segments"]]
         detected = output.get("language") or language
         for segment in segments:
             segment.language = detected
-        return Transcript(language=detected, model="whisper.cpp:" + Path(self.config.whisper_model).name,
+        transcript = Transcript(language=detected, model="whisper.cpp:" + Path(model).name,
                           raw_text=" ".join(item.text for item in segments), segments=segments)
+        flag_repetition(transcript)
+        return transcript
+
+
+def flag_repetition(transcript: Transcript) -> None:
+    """Flag repeated ASR loops without deleting potentially spoken material."""
+    import re
+    run = []
+    previous = None
+    suspicious = False
+    for segment in transcript.segments:
+        words = re.findall(r"[^\W_]+", segment.text.casefold())
+        key = tuple(words)
+        run = run + [segment] if key == previous else [segment]
+        previous = key
+        if len(words) >= 3 and len(run) >= 3:
+            suspicious = True
+            for repeated in run:
+                repeated.needs_review = True
+    if suspicious:
+        warning = "Repeated recognition output detected. Check the original audio; repeated text may be a transcription error."
+        if warning not in transcript.warnings:
+            transcript.warnings.append(warning)
 
 
 def capabilities(config: Settings):

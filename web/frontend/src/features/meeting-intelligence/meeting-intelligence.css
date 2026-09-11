@@ -130,6 +130,9 @@
 .mi-recording-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--mi-danger); animation: mi-pulse 2s infinite; }
 .mi-recording-banner strong { display: block; color: var(--mi-ink); font-size: 12px; }
 .mi-recording-banner small { display: block; margin-top: 2px; color: var(--mi-muted); font-size: 10px; }
+.mi-audio-signal { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 6px; color: var(--mi-muted); font-size: 11px; }
+.mi-audio-signal meter { width: 72px; height: 8px; }
+.mi-audio-signal-warning { color: var(--mi-warning); }
 .mi-recording-clock { margin-left: auto; font-size: 13px; font-variant-numeric: tabular-nums; }
 .mi-recording-banner button { font-size: 10px; }
 .mi-recording-banner button svg { width: 10px; height: 10px; fill: currentColor; }
@@ -512,3 +515,11 @@
   .mi-page .animate-spin,
   .mi-dialog .animate-spin { animation-duration: 3s; }
 }
+.mi-uncertain-word {
+  color: inherit;
+  background: transparent;
+  text-decoration: underline dotted #ef6c22;
+  text-underline-offset: 4px;
+}
+.mi-quality-notice { padding: 16px 24px; border-bottom: 1px solid var(--mi-border, #282828); }
+.mi-quality-notice p { margin: 6px 0 0; font-size: 13px; line-height: 1.5; }

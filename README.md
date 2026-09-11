@@ -4,13 +4,15 @@ Meeting Station is our local meeting-intelligence product for the **Radxa Cubie 
 
 The browser uploads to the Radxa through Caddy. Original audio, the queue, transcripts and JSON/CSV/PDF/ICS exports stay on the board; a disconnected Mac leaves jobs saved for later processing. The browser uses a station token stored only for its tab session. Inference uses installed models and local assets; full WAN-disconnected hardware acceptance remains to be verified. Online meetings use the meeting platform's internet connection.
 
-- Open the deployed station at **http://192.168.8.57/meeting-intelligence** on the demo LAN. This HTTP fallback is unencrypted; HTTPS remains available at `https://radxa-cubie-a7a.local/meeting-intelligence` with the station certificate trusted.
+The Mac login agent automatically unlocks and starts the Radxa after boot, including its meeting browser. An actual reboot restored the complete connected station in 80.745 seconds. The Mac must be logged in and running. **Join & record** accepts a meeting link, enters the participant name, keeps microphone/camera off, requests admission and archives the recording when the call ends. Host and account restrictions still apply; see [startup and joining](docs/RUNBOOK.md).
+
+- Open **https://192.168.8.57/meeting-intelligence** with the station CA trusted. Browser traffic uses HTTPS; the Cubie–Mac connection requires mutual TLS. The archive, browser profile and station credentials are encrypted. See [security and recovery](docs/SECURITY.md).
 - **Join online meeting** opens an isolated browser on the Radxa. Complete joining as a disclosed recording participant, then start recording incoming audio. Stopping queues local Mac transcription and report generation. See [meeting browser setup and limits](deploy/meeting-browser/README.md).
 - [Architecture](docs/ARCHITECTURE.md) and [deployment, validation and Carelink rollback](docs/RUNBOOK.md).
 - [Radxa station bridge](station/README.md) and [Mac inference worker](mac-worker/README.md).
 - Build the appliance with `scripts/build-station.sh`: `VITE_MEETING_STATION=true` selects the station UI; `MI_STATION_MODE=true` keeps Go from starting upstream transcription/download features.
 
-This deployment uses systemd and the existing Caddy service; Docker is not installed on the board. ASR uses multilingual whisper.cpp large-v3-turbo q5, selected after it corrected a name error from base in a local comparison. Base remains a smaller fallback. See [measured validation and limits](docs/VALIDATION.md); multilingual accuracy and meeting throughput still need representative tests.
+This deployment uses systemd and the existing Caddy service; Docker is not installed on the board. ASR uses full multilingual Whisper large-v3, with turbo q5 for explicitly English input based on the measured fixture. Language controls, optional spelling hints and uncertain-word review are available. See [ASR measurements](docs/ACCURACY.md) and the [PDF requirement audit](docs/REQUIREMENTS.md). See [measured validation and limits](docs/VALIDATION.md); multilingual accuracy and meeting throughput still need representative tests.
 
 Carelink's application/configuration snapshot is saved and verified privately under `backups/carelink-20260911/` on this Mac. Its original board files are retained, and `deploy/radxa/restore-carelink.sh` restores the previous service/routing configuration. The snapshot is not a disk image. Backups, credentials, local runtime state and model files are excluded from Git.
 

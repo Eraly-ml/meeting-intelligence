@@ -9,7 +9,7 @@ test -x /opt/meeting-intelligence/venv/bin/python
 test -f "$stage/build/scriberr-linux-arm64"
 id meeting-station >/dev/null
 install -d -m 755 /opt/meeting-intelligence/bin
-install -d -m 700 /etc/meeting-intelligence
+install -d -m 750 -o root -g meeting-station /etc/meeting-intelligence
 /opt/meeting-intelligence/venv/bin/python -m pip install --no-deps --force-reinstall "$stage"/meeting_intelligence_station-*.whl
 install -m 755 "$stage/build/scriberr-linux-arm64" /opt/meeting-intelligence/bin/scriberr.new
 mv /opt/meeting-intelligence/bin/scriberr.new /opt/meeting-intelligence/bin/scriberr

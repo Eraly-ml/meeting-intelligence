@@ -67,8 +67,9 @@ class Pipeline:
                     raise RuntimeError("Audio is empty or exceeds the configured duration limit")
                 job = self.store.update(job.id, JobStage.TRANSCRIBING)
                 profile = self.config.asr_en if job.manifest.language_mode == "en" else self.config.asr_kk_ru
-                language = "en" if job.manifest.language_mode == "en" else "auto"
-                transcript = get_adapter(profile, self.config).transcribe(wav, language)
+                language = job.manifest.language_mode if job.manifest.language_mode in {"en", "ru", "kk"} else "auto"
+                asr_config = self.config.model_copy(update={"whisper_prompt": job.manifest.vocabulary})
+                transcript = get_adapter(profile, asr_config).transcribe(wav, language)
 
                 if job.manifest.diarization:
                     if not self.config.enable_diarization:
@@ -107,7 +108,7 @@ class Pipeline:
             }
             export_json(paths["json"], protocol, transcript)
             export_csv(paths["csv"], protocol)
-            export_pdf(paths["pdf"], protocol, font_path=self.config.pdf_font or None)
+            export_pdf(paths["pdf"], protocol, font_path=self.config.pdf_font or None, transcript=transcript)
             export_ics(paths["ics"], protocol)
 
             result_path = self.config.data_dir / "results" / f"{job.id}.json"

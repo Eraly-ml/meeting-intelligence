@@ -19,6 +19,7 @@ test -f "$snapshot/complete"
 caddy validate --config /etc/meeting-intelligence/Caddyfile.station --adapter caddyfile
 systemctl daemon-reload
 rollback() {
+    rm -f /opt/meeting-intelligence/autostart-enabled
     if systemctl cat meeting-browser.service >/dev/null 2>&1; then
         systemctl disable --now meeting-browser.service || true
     fi
@@ -56,4 +57,6 @@ if [ -f /opt/meeting-browser/provisioned ] && \
    systemctl cat meeting-browser.service >/dev/null 2>&1; then
     systemctl enable --now meeting-browser.service
 fi
+touch /opt/meeting-intelligence/autostart-enabled
+rm -f /opt/meeting-intelligence/autostart-paused
 printf '%s\n' 'Meeting Station active. Carelink code, data, firewall and SSH configuration are preserved.'

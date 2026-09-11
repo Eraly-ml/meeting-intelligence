@@ -6,6 +6,7 @@ browser_base=/opt/meeting-browser
 test -f "$browser_base/provisioned"
 test -f "$browser_base/browser.env"
 test -f "$browser_base/controller.py"
+test -f "$browser_base/join.js"
 test -f "$browser_base/browser_auth.py"
 test -f "$browser_base/launch.sh"
 
@@ -24,6 +25,7 @@ install -d -o meeting-browser -g meeting-browser -m 0700 \
     /var/lib/meeting-browser /var/lib/meeting-browser/recordings
 install -m 0755 "$browser_base/launch.sh" "$browser_base/rootfs/opt/meeting-browser/launch.sh"
 install -m 0644 "$browser_base/controller.py" "$browser_base/rootfs/opt/meeting-browser/controller.py"
+install -m 0644 "$browser_base/join.js" "$browser_base/rootfs/opt/meeting-browser/join.js"
 install -m 0644 "$browser_base/browser_auth.py" "$browser_base/rootfs/opt/meeting-browser/browser_auth.py"
 chmod 0600 "$browser_base/browser.env"
 chown root:root "$browser_base/browser.env"

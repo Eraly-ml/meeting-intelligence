@@ -43,6 +43,8 @@ export interface TranscriptSegment {
   text: string
   speaker?: string | null
   language?: string | null
+  tokens?: Array<{ text: string; probability: number }>
+  needs_review?: boolean
 }
 export interface MeetingResult {
   job: JobRecord
@@ -56,7 +58,7 @@ export interface MeetingResult {
     risks: ProtocolItem[]
     action_items: Array<SourcedItem & { task: string; assignee?: string | null; deadline_text?: string | null; priority: string }>
   }
-  transcript: { raw_text: string; segments: TranscriptSegment[]; language: string; model: string }
+  transcript: { raw_text: string; segments: TranscriptSegment[]; language: string; model: string; warnings?: string[] }
   exports: Record<string, string>
 }
 export interface Capabilities {
@@ -82,8 +84,9 @@ export interface BrowserStatus {
   state: 'ready' | 'opened' | 'unavailable'
   platform: 'meet' | 'zoom' | 'teams' | null
   message: string
+  join?: { recording_id: string; state: 'joining' | 'waiting' | 'joined' | 'blocked' | 'ended'; message: string } | null
   active_recording_id: string | null
-  recordings: Array<{ id: string; state: 'recording' | 'stopped' | 'interrupted'; bytes: number; error?: string | null }>
+  recordings: Array<{ id: string; state: 'recording' | 'stopped' | 'interrupted'; bytes: number; error?: string | null; audio_health?: { state: 'receiving' | 'quiet' | 'waiting' | 'stalled'; rms_dbfs: number; quiet_seconds: number; received: boolean } }>
 }
 
 export class APIError extends Error {
@@ -132,6 +135,9 @@ export const browserStatus = (config: WorkerConfig, signal?: AbortSignal) => jso
 export const openMeetingBrowser = (config: WorkerConfig, url: string) => json<BrowserStatus>(config, '/v1/browser/open', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }),
 })
+export const joinMeeting = (config: WorkerConfig, input: { url: string; title: string; language_mode: string; output_language: string; diarization: boolean }) => json<JobRecord>(config, '/v1/browser/join', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal: AbortSignal.timeout(60000),
+})
 export const browserSession = (config: WorkerConfig) => json<{ viewer_path: string; expires_in: number }>(config, '/v1/browser/session', { method: 'POST' })
 export const startBrowserRecording = (config: WorkerConfig, input: { title: string; language_mode: string; output_language: string; diarization: boolean }) => json<JobRecord>(config, '/v1/browser/recordings/start', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
@@ -140,10 +146,10 @@ export const stopBrowserRecording = (config: WorkerConfig, id: string) => json<J
   method: 'POST', signal: AbortSignal.timeout(120000),
 })
 export function submitMeeting(config: WorkerConfig, input: {
-  id: string; title: string; languageMode: string; outputLanguage: string; diarization: boolean; file?: File; transcript?: string
+  id: string; title: string; languageMode: string; outputLanguage: string; vocabulary?: string; diarization: boolean; file?: File; transcript?: string
 }, onProgress: (percent: number) => void, signal: AbortSignal): Promise<JobRecord> {
   const form = new FormData()
-  form.set('manifest_json', JSON.stringify({ meeting_id: input.id, title: input.title || 'Meeting', language_mode: input.languageMode, output_language: input.outputLanguage, diarization: input.diarization }))
+  form.set('manifest_json', JSON.stringify({ meeting_id: input.id, title: input.title || 'Meeting', language_mode: input.languageMode, output_language: input.outputLanguage, vocabulary: input.vocabulary || '', diarization: input.diarization }))
   if (input.file) form.set('audio', input.file)
   else form.set('transcript', input.transcript || '')
   return new Promise((resolve, reject) => {

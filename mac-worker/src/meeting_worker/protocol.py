@@ -57,7 +57,7 @@ def _messages(segments, manifest, previous):
         'meeting_title': manifest.title, 'meeting_date': str(manifest.meeting_date) if manifest.meeting_date else None,
         'output_language': manifest.output_language,
         'previous_protocol': previous.model_dump(mode='json', exclude={'executive_summary', 'executive_summary_sources'}) if previous else None,
-        'transcript': [segment.model_dump(mode='json') for segment in segments]})}]
+        'transcript': [segment.model_dump(mode='json', exclude={'tokens'}) for segment in segments]})}]
 
 
 def _raw_schema(segments, previous):
@@ -311,7 +311,7 @@ def _verify_facts(protocol, transcript, config, client, budget):
         if hasattr(item, 'priority') and item.priority != 'not_specified':
             factual['priority'] = item.priority
         claim = {'id': len(batch), 'kind': kind, 'claim': factual,
-                 'evidence': [sources[ref].model_dump(mode='json') for ref in item.evidence.segment_ids]}
+                 'evidence': [sources[ref].model_dump(mode='json', exclude={'tokens'}) for ref in item.evidence.segment_ids]}
         if len(compact(batch + [claim]).encode()) + 1024 > budget:
             review()
             batch, objects = [], []
@@ -362,6 +362,8 @@ def validate_evidence(protocol: MeetingProtocol, transcript: Transcript) -> Meet
         ends = [segment.end for segment in found if segment.end is not None]
         item.evidence.start, item.evidence.end = min(starts) if starts else None, max(ends) if ends else None
         item.source_check = 'passed'
+        if any(segment.needs_review for segment in found):
+            item.review_status = 'needs_review'
         claim = ' '.join(str(getattr(item, field, '') or '') for field in ('title', 'text', 'task', 'assignee', 'deadline_text'))
         if hasattr(item, 'text') and _negation_conflict(claim, item.evidence.quote):
             item.source_check = 'failed'

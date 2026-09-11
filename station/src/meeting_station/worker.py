@@ -19,7 +19,8 @@ class MacClient:
         self.client = httpx.AsyncClient(base_url=settings.worker_url,
                                        headers={"Authorization": "Bearer " + settings.worker_token},
                                        timeout=httpx.Timeout(settings.request_timeout, connect=3),
-                                       trust_env=False, follow_redirects=False, transport=transport)
+                                       trust_env=False, follow_redirects=False, transport=transport,
+                                       verify=settings.worker_tls())
 
     async def close(self):
         await self.client.aclose()

@@ -7,6 +7,8 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
+from .models import Manifest
+
 
 TERMINAL = {"completed", "failed", "cancelled"}
 
@@ -93,7 +95,7 @@ class Store:
             existing = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
             if existing:
                 original = json.loads(existing["payload"])
-                if original["manifest"] != manifest or original["source_sha256"] != digest or original["source_kind"] != source_kind:
+                if Manifest.model_validate(original["manifest"]) != Manifest.model_validate(manifest) or original["source_sha256"] != digest or original["source_kind"] != source_kind:
                     raise StoreError("Idempotency-Key already belongs to different meeting content")
                 return original
             if temporary is not None:
