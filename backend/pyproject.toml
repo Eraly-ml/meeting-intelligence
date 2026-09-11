@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meetingbox-hub"
+version = "0.1.0"
+description = "Private LAN meeting intelligence hub"
+requires-python = ">=3.9"
+dependencies = ["fastapi>=0.115,<0.129", "uvicorn[standard]>=0.30,<0.40", "httpx>=0.27,<0.29", "pydantic>=2.9,<3", "python-multipart>=0.0.20,<0.0.23"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["meetingbox*"]
+
+[tool.setuptools.package-data]
+meetingbox = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

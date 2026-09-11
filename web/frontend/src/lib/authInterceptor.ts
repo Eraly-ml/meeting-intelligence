@@ -11,15 +11,20 @@ export function setupAuthInterceptor(): void {
     window.__scriberr_original_fetch = originalFetch;
 
     const wrappedFetch: typeof window.fetch = async (input, init) => {
-        const url = parseRequestUrl(input);
-        const isAuthEndpoint = url.includes('/api/v1/auth/');
+        const url = new URL(parseRequestUrl(input), window.location.href);
+        // Station pairing and external services own their authentication.
+        // Never leak a Scriberr JWT or refresh/logout on their 401 responses.
+        if (url.origin !== window.location.origin || !url.pathname.startsWith('/api/v1/')) {
+            return originalFetch(input, init);
+        }
+        const isAuthEndpoint = url.pathname.startsWith('/api/v1/auth/');
 
         const state = useAuthStore.getState();
         const token = state.token;
 
         let requestInit = init || {};
         if (token && !isAuthEndpoint) {
-            const headers = new Headers(requestInit.headers);
+            const headers = new Headers(requestInit.headers || (input instanceof Request ? input.headers : undefined));
             if (!headers.has('Authorization')) {
                 headers.set('Authorization', `Bearer ${token}`);
                 requestInit = { ...requestInit, headers };

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meetingbox-engine"
+version = "0.2.0"
+description = "Offline Mac inference service for MeetingBox stations"
+requires-python = ">=3.9"
+dependencies = ["meetingbox-hub", "reportlab>=4.2,<5"]
+
+[project.optional-dependencies]
+diarization = ["sherpa-onnx>=1.12,<2", "numpy>=1.24,<3"]
+test = ["pytest>=8,<9"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["meetingbox_engine*"]

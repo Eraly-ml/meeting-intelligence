@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { meetingStationMode } from '@/lib/stationMode'
 
 // Lazy load route components for better performance
 const Dashboard = lazy(() => import("@/features/transcription/components/Dashboard").then(module => ({ default: module.Dashboard })));
@@ -21,16 +22,16 @@ function App() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/audio/:audioId" element={<AudioDetailView />} />
+        <Route path="/" element={meetingStationMode ? <Navigate to="/meeting-intelligence" replace /> : <Dashboard />} />
+        {!meetingStationMode && <Route path="/audio/:audioId" element={<AudioDetailView />} />}
         <Route path="/meeting-intelligence" element={<MeetingIntelligence />} />
 
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/settings/cli" element={<CLISettings />} />
-        <Route path="/auth/cli/authorize" element={<CLIAuthConfirmation />} />
+        {!meetingStationMode && <Route path="/settings" element={<Settings />} />}
+        {!meetingStationMode && <Route path="/settings/cli" element={<CLISettings />} />}
+        {!meetingStationMode && <Route path="/auth/cli/authorize" element={<CLIAuthConfirmation />} />}
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to={meetingStationMode ? '/meeting-intelligence' : '/'} replace />} />
       </Routes>
     </Suspense>
   )

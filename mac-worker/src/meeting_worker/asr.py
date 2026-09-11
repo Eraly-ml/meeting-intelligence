@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+import importlib.util
+import shutil
+import tempfile
+from types import SimpleNamespace
 
 from .config import Settings
 from .schemas import Transcript, TranscriptSegment
@@ -16,11 +20,56 @@ class ASRAdapter(ABC):
     def transcribe(self, audio_path: Path, language: str) -> Transcript: ...
 
 
+def local_audio_settings(config: Settings, diarization: bool = False):
+    return SimpleNamespace(
+        ffmpeg_binary=shutil.which(config.ffmpeg_binary) or config.ffmpeg_binary,
+        whisper_binary=shutil.which(config.whisper_binary) or config.whisper_binary,
+        whisper_model=config.whisper_model,
+        segmentation_model=config.segmentation_model if diarization else "",
+        embedding_model=config.embedding_model if diarization else "",
+        process_timeout=config.audio_timeout, max_audio_seconds=config.max_audio_seconds)
+
+
+class WhisperCPPAdapter(ASRAdapter):
+    def __init__(self, config: Settings):
+        self.config = config
+
+    def transcribe(self, audio_path: Path, language: str) -> Transcript:
+        from .local_audio import AudioProcessor
+        with tempfile.TemporaryDirectory(prefix="asr-", dir=self.config.data_dir / "work") as directory:
+            source = Path(directory) / "source.wav"
+            shutil.copyfile(audio_path, source)
+            output = AudioProcessor(local_audio_settings(self.config)).transcribe(source, language)
+        segments = [TranscriptSegment(id="seg_{:05d}".format(item["sequence"]), start=item["start"],
+                                      end=item["end"], text=item["text"], language=language)
+                    for item in output["segments"]]
+        detected = output.get("language") or language
+        for segment in segments:
+            segment.language = detected
+        return Transcript(language=detected, model="whisper.cpp:" + Path(self.config.whisper_model).name,
+                          raw_text=" ".join(item.text for item in segments), segments=segments)
+
+
+def capabilities(config: Settings):
+    from .local_audio import AudioProcessor, local_file
+    local = AudioProcessor(local_audio_settings(config, True)).capabilities()
+    def configured_model(package, model):
+        return {"ready": importlib.util.find_spec(package) is not None and Path(model).is_dir(),
+                "detail": "Requires installed package and explicit local model directory"}
+    return {"whisper-cpp": local["transcription"],
+            "shyngys": configured_model("transformers", config.shyngys_model),
+            "gigaam": configured_model("transformers", config.gigaam_model),
+            "mlx-distil-whisper": configured_model("mlx_whisper", config.distil_model),
+            "diarization": local["diarization"]}
+
+
 class MLXWhisperAdapter(ASRAdapter):
     def __init__(self, model: str):
         self.model = model
 
     def transcribe(self, audio_path: Path, language: str) -> Transcript:
+        if not Path(self.model).is_dir():
+            raise ASRError("MLX runtime requires an explicit local model directory; provision it first")
         try:
             import mlx_whisper  # type: ignore
         except ImportError as exc:
@@ -122,6 +171,8 @@ class GigaAMAdapter(ASRAdapter):
 
 
 def get_adapter(profile: str, config: Settings) -> ASRAdapter:
+    if profile == "whisper-cpp":
+        return WhisperCPPAdapter(config)
     if profile == "mlx-distil-whisper":
         return MLXWhisperAdapter(config.distil_model)
     if profile == "shyngys":

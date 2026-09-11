@@ -71,3 +71,22 @@ tmp/
 # *.png
 dhl.txt
 __pycache__/
+
+# Local MeetingBox client, backups, and provisioning
+.DS_Store
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.egg-info/
+.build/
+build/
+data/
+models/
+.env
+.local/
+backups/
+*.sqlite*
+macos/.swiftpm/
+
+third_party/scriberr/

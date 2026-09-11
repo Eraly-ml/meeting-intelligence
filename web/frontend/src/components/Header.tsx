@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { isVideoFile, isAudioFile } from "../utils/fileProcessor";
 import { useGlobalUpload } from "@/contexts/GlobalUploadContext";
+import { meetingStationMode } from "@/lib/stationMode";
 
 interface FileWithType {
 	file: File;
@@ -29,7 +30,30 @@ interface HeaderProps {
 	onDownloadComplete?: () => void;
 }
 
-export function Header({ onFileSelect, onMultiTrackClick, onDownloadComplete }: HeaderProps) {
+export function Header(props: HeaderProps) {
+	return meetingStationMode ? <StationHeader /> : <ScriberrHeader {...props} />;
+}
+
+function StationHeader() {
+	const navigate = useNavigate();
+	const { logout } = useAuth();
+	const handleLogout = () => {
+		try { sessionStorage.removeItem('mi.stationToken'); sessionStorage.removeItem('mi.selectedJob'); } catch { /* Browser storage may be unavailable. */ }
+		logout();
+	};
+	return <header className="sticky top-4 sm:top-6 z-40 glass rounded-[var(--radius-card)] px-4 py-3 sm:px-6 sm:py-4 shadow-[var(--shadow-float)] border border-[var(--border-subtle)]">
+		<div className="flex items-center justify-between gap-3">
+			<ScriberrLogo onClick={() => navigate('/meeting-intelligence')} />
+			<div className="flex items-center gap-2 sm:gap-3">
+				<Button variant="ghost" size="sm" onClick={() => navigate('/meeting-intelligence')} className="hidden sm:flex text-[var(--text-secondary)]"><BrainCircuit />Meeting archive</Button>
+				<ThemeSwitcher />
+				<Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Log out" title="Log out" className="text-[var(--text-secondary)]"><LogOut className="h-4 w-4" /></Button>
+			</div>
+		</div>
+	</header>;
+}
+
+function ScriberrHeader({ onFileSelect, onMultiTrackClick, onDownloadComplete }: HeaderProps) {
 	const navigate = useNavigate();
 	const { logout } = useAuth();
 	const fileInputRef = useRef<HTMLInputElement>(null);

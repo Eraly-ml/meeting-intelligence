@@ -4,7 +4,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 
 
 class JobStage(StrEnum):
@@ -57,6 +57,13 @@ class ActionItem(BaseModel):
         "unreviewed", "needs_review", "human_confirmed", "rejected"
     ] = "unreviewed"
 
+    @field_validator("assignee", "deadline_text", mode="before")
+    @classmethod
+    def normalize_unknown(cls, value):
+        if isinstance(value, str) and value.strip().lower() in {"null", "none", "unknown", "not specified", "not_specified", "n/a"}:
+            return None
+        return value
+
 
 class MeetingMetadata(BaseModel):
     title: str = "Meeting"
@@ -81,12 +88,21 @@ class MeetingProtocol(BaseModel):
 
 
 class TranscriptSegment(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
     id: str
     start: float | None = None
     end: float | None = None
-    text: str
+    text: str = Field(max_length=1000000)
     speaker: str | None = None
     language: str | None = None
+
+    @model_validator(mode="after")
+    def valid_interval(self):
+        if self.start is not None and self.start < 0:
+            raise ValueError("Negative transcript start")
+        if self.end is not None and (self.end < 0 or (self.start is not None and self.end < self.start)):
+            raise ValueError("Invalid transcript interval")
+        return self
 
 
 class Transcript(BaseModel):
@@ -98,9 +114,10 @@ class Transcript(BaseModel):
 
 
 class JobManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     schema_version: str = "1.0"
-    meeting_id: str
-    title: str = "Meeting"
+    meeting_id: str = Field(min_length=1, max_length=200)
+    title: str = Field(default="Meeting", min_length=1, max_length=200)
     language_mode: Literal["kk_ru", "en", "auto"] = "auto"
     output_language: Literal["same", "kk", "ru", "en"] = "same"
     meeting_date: date | None = None
@@ -108,6 +125,12 @@ class JobManifest(BaseModel):
     diarization: bool = False
     min_speakers: int | None = Field(default=None, ge=1, le=20)
     max_speakers: int | None = Field(default=None, ge=1, le=20)
+
+    @model_validator(mode="after")
+    def speaker_bounds(self):
+        if self.min_speakers is not None and self.max_speakers is not None and self.min_speakers > self.max_speakers:
+            raise ValueError("Minimum speakers cannot exceed maximum")
+        return self
 
 
 class JobRecord(BaseModel):

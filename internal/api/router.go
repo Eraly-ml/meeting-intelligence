@@ -63,6 +63,10 @@ func SetupRoutes(handler *Handler, authService *auth.AuthService) *gin.Engine {
 	})
 
 	// Health check endpoint (no auth required)
+	if handler.config.StationMode {
+		router.Use(stationBoundary())
+	}
+
 	router.GET("/health", handler.HealthCheck)
 
 	// CLI install script alias (root level for easier access)

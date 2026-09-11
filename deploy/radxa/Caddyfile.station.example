@@ -1,0 +1,19 @@
+# Keep the board's existing hostname and Caddy local certificate authority.
+http:// {
+	redir https://radxa-cubie-a7a.local{uri} permanent
+}
+
+radxa-cubie-a7a.local {
+	tls internal
+	encode zstd gzip
+	header {
+		-Server
+		X-Robots-Tag "noindex, nofollow, noarchive"
+	}
+	handle_path /api/meeting-worker/* {
+		reverse_proxy 127.0.0.1:8766
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8081
+	}
+}

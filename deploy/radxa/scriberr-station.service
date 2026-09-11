@@ -1,0 +1,25 @@
+[Unit]
+Description=Scriberr Meeting Intelligence browser application
+After=network-online.target meeting-station.service
+Wants=network-online.target
+
+[Service]
+User=meeting-station
+Group=meeting-station
+WorkingDirectory=/var/lib/meeting-intelligence
+EnvironmentFile=/etc/meeting-intelligence/scriberr.env
+ExecStart=/opt/meeting-intelligence/bin/scriberr
+Restart=on-failure
+RestartSec=3
+StateDirectory=meeting-intelligence
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/meeting-intelligence
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

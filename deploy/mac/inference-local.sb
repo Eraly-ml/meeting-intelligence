@@ -1,0 +1,8 @@
+;; Local inference processes may receive LAN requests and reply, but may only
+;; initiate direct IP connections to this Mac (worker -> local Ollama).
+;; Apple's localhost filter includes this Mac's own network interface addresses.
+;; This is a direct socket restriction, not an audit of delegated DNS/IPC traffic.
+(version 1)
+(allow default)
+(deny network-outbound (remote ip))
+(allow network-outbound (remote ip "localhost:*"))

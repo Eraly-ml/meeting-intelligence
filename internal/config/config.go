@@ -17,6 +17,8 @@ type Config struct {
 	// Server configuration
 	Port string
 	Host string
+	// StationMode serves the local account/UI shell; the Mac worker owns inference.
+	StationMode bool
 
 	// Database configuration
 	DatabasePath string
@@ -59,6 +61,7 @@ func Load() *Config {
 	return &Config{
 		Port:           getEnv("PORT", "8080"),
 		Host:           getEnv("HOST", "0.0.0.0"),
+		StationMode:    strings.EqualFold(getEnv("MI_STATION_MODE", "false"), "true"),
 		Environment:    getEnv("APP_ENV", "development"),
 		AllowedOrigins: strings.Split(getEnv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:8080"), ","),
 		DatabasePath:   getEnv("DATABASE_PATH", "data/scriberr.db"),

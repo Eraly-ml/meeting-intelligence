@@ -14,6 +14,7 @@ import { ChatEventsProvider } from './contexts/ChatEventsContext'
 import { GlobalUploadProvider } from './contexts/GlobalUploadContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupAuthInterceptor } from './lib/authInterceptor'
+import { meetingStationMode } from './lib/stationMode'
 
 // Initialize the global fetch interceptor for auth
 setupAuthInterceptor();
@@ -29,9 +30,7 @@ createRoot(document.getElementById('root')!).render(
             <ToastProvider>
               <ChatEventsProvider>
                 <ProtectedRoute>
-                  <GlobalUploadProvider>
-                    <App />
-                  </GlobalUploadProvider>
+                  {meetingStationMode ? <App /> : <GlobalUploadProvider><App /></GlobalUploadProvider>}
                 </ProtectedRoute>
               </ChatEventsProvider>
             </ToastProvider>

@@ -1,3 +1,5 @@
+# Legacy full-Scriberr container deployment. The current Radxa station uses the
+# systemd bridge and Mac worker described in docs/RUNBOOK.md; no Docker is needed.
 services:
   meeting-ui:
     build:

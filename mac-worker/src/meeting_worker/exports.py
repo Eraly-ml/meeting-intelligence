@@ -45,17 +45,17 @@ def export_csv(path: Path, protocol: MeetingProtocol) -> None:
             )])
 
 
-def export_pdf(path: Path, protocol: MeetingProtocol) -> None:
-    font_name = _pdf_font()
+def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = None) -> None:
+    font_name = _pdf_font(font_path)
     styles = getSampleStyleSheet()
     for style in styles.byName.values():
         style.fontName = font_name
     story = [Paragraph(escape(protocol.metadata.title), styles["Title"]), Spacer(1, 12)]
     sections = [
         ("Executive summary", protocol.executive_summary),
-        ("Decisions", [item.text for item in protocol.decisions]),
-        ("Open questions", [item.text for item in protocol.open_questions]),
-        ("Risks", [item.text for item in protocol.risks]),
+        ("Decisions", [_qualified(item.text, item) for item in protocol.decisions]),
+        ("Open questions", [_qualified(item.text, item) for item in protocol.open_questions]),
+        ("Risks", [_qualified(item.text, item) for item in protocol.risks]),
     ]
     for title, lines in sections:
         story.append(Paragraph(title, styles["Heading2"]))
@@ -65,7 +65,7 @@ def export_pdf(path: Path, protocol: MeetingProtocol) -> None:
     rows = [["Assignee", "Task", "Deadline", "Priority"]]
     rows.extend([
         [Paragraph(escape(item.assignee or "—"), styles["BodyText"]),
-         Paragraph(escape(item.task), styles["BodyText"]),
+         Paragraph(escape(_qualified(item.task, item)), styles["BodyText"]),
          Paragraph(escape(item.deadline_text or "—"), styles["BodyText"]), item.priority]
         for item in protocol.action_items
     ])
@@ -77,12 +77,26 @@ def export_pdf(path: Path, protocol: MeetingProtocol) -> None:
         ("FONTNAME", (0, 0), (-1, -1), font_name),
     ]))
     story.append(table)
-    SimpleDocTemplate(str(path), pagesize=A4).build(story)
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Evidence references", styles["Heading2"]))
+    for item in protocol.decisions + protocol.action_items:
+        quote = item.evidence.quote or "No verified source excerpt"
+        citation = "{}: {} — {}".format(item.id, ", ".join(item.evidence.segment_ids) or "No references", quote)
+        story.append(Paragraph(escape(citation), styles["BodyText"]))
+    SimpleDocTemplate(str(path), pagesize=A4, leftMargin=36, rightMargin=36).build(story)
 
 
-def _pdf_font() -> str:
+def _qualified(text, item):
+    if item.review_status == "rejected":
+        return "[Rejected] " + text
+    if item.review_status == "needs_review" or item.source_check in {"failed", "unavailable"}:
+        return "[Needs review] " + text
+    return text
+
+
+def _pdf_font(font_path: str | None = None) -> str:
     """Register a Unicode font available on macOS, Linux/Radxa, or Windows."""
-    candidates = [
+    candidates = [Path(font_path)] if font_path else [
         Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
         Path("/Library/Fonts/Arial.ttf"),
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),

@@ -77,8 +77,10 @@ func main() {
 	logger.Startup("config", "Loading configuration")
 	cfg := config.Load()
 
-	// Register adapters with config-based paths
-	registerAdapters(cfg)
+	// The Radxa station must never bootstrap or run legacy/cloud adapters.
+	if !cfg.StationMode {
+		registerAdapters(cfg)
+	}
 
 	// Initialize database
 	logger.Startup("database", "Connecting to database")
@@ -114,34 +116,37 @@ func main() {
 	userService := service.NewUserService(userRepo, authService)
 	fileService := service.NewFileService()
 
-	// Initialize unified transcription processor
-	logger.Startup("transcription", "Initializing transcription service")
-	unifiedProcessor := transcription.NewUnifiedJobProcessor(jobRepo, cfg.TempDir, cfg.TranscriptsDir)
-	unifiedProcessor.GetUnifiedService().SetBroadcaster(broadcaster)
+	var unifiedProcessor *transcription.UnifiedJobProcessor
+	var quickTranscriptionService *transcription.QuickTranscriptionService
+	var taskQueue *queue.TaskQueue
+	var multiTrackProcessor *processing.MultiTrackProcessor
+	if cfg.StationMode {
+		logger.Info("Station mode: UI and accounts only; inference is delegated through the private station bridge")
+	} else {
+		logger.Startup("transcription", "Initializing transcription service")
+		unifiedProcessor = transcription.NewUnifiedJobProcessor(jobRepo, cfg.TempDir, cfg.TranscriptsDir)
+		unifiedProcessor.GetUnifiedService().SetBroadcaster(broadcaster)
 
-	// Bootstrap embedded Python environment (for all adapters)
-	logger.Startup("python", "Preparing Python environment")
-	if err := unifiedProcessor.InitEmbeddedPythonEnv(); err != nil {
-		logger.Error("Failed to prepare Python environment", "error", err)
-		os.Exit(1)
+		logger.Startup("python", "Preparing Python environment")
+		if err := unifiedProcessor.InitEmbeddedPythonEnv(); err != nil {
+			logger.Error("Failed to prepare Python environment", "error", err)
+			os.Exit(1)
+		}
+
+		logger.Startup("quick-transcription", "Initializing quick transcription service")
+		var err error
+		quickTranscriptionService, err = transcription.NewQuickTranscriptionService(cfg, unifiedProcessor, jobRepo)
+		if err != nil {
+			logger.Error("Failed to initialize quick transcription service", "error", err)
+			os.Exit(1)
+		}
+
+		logger.Startup("queue", "Starting background processing")
+		taskQueue = queue.NewTaskQueue(2, unifiedProcessor, jobRepo)
+		taskQueue.Start()
+		defer taskQueue.Stop()
+		multiTrackProcessor = processing.NewMultiTrackProcessor(database.DB, jobRepo)
 	}
-
-	// Initialize quick transcription service
-	logger.Startup("quick-transcription", "Initializing quick transcription service")
-	quickTranscriptionService, err := transcription.NewQuickTranscriptionService(cfg, unifiedProcessor, jobRepo)
-	if err != nil {
-		logger.Error("Failed to initialize quick transcription service", "error", err)
-		os.Exit(1)
-	}
-
-	// Initialize task queue
-	logger.Startup("queue", "Starting background processing")
-	taskQueue := queue.NewTaskQueue(2, unifiedProcessor, jobRepo) // 2 workers
-	taskQueue.Start()
-	defer taskQueue.Stop()
-
-	// Initialize multi-track processor
-	multiTrackProcessor := processing.NewMultiTrackProcessor(database.DB, jobRepo)
 
 	// Initialize API handlers
 	handler := api.NewHandler(

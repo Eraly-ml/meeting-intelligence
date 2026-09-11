@@ -1,13 +1,21 @@
 # AI Meeting Intelligence
 
-Offline meeting processing split between a **Radxa Cubie A7A** appliance and a **MacBook Air M5** inference worker. This fork adds Kazakh/Russian/English model routing, evidence-backed meeting protocols, durable jobs, and JSON/CSV/PDF exports to the Scriberr foundation.
+A local meeting station built on Scriberr: the **Radxa Cubie A7A (6 GB, Debian 11 CLI)** records and archives meetings, while the **MacBook Air M5 (16 GB)** runs speech recognition, optional speaker diarization, Qwen3.5, verification and PDF generation.
 
-- Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- Deployment: [`docs/RUNBOOK.md`](docs/RUNBOOK.md)
-- Mac worker: [`mac-worker/README.md`](mac-worker/README.md)
-- UI route: `/meeting-intelligence`
+The browser uploads to the Radxa over its existing Caddy HTTPS setup. Original audio, the queue, transcripts and JSON/CSV/PDF exports stay on the board; a disconnected Mac leaves jobs saved for later processing. The browser uses a station token stored only for its tab session. Runtime uses installed models and local assets; full WAN-disconnected hardware acceptance remains to be verified.
 
-The project remains licensed under MIT and retains the original Scriberr copyright and history. The upstream README follows.
+- Open the deployed station at `https://radxa-cubie-a7a.local/meeting-intelligence`.
+- [Architecture](docs/ARCHITECTURE.md) and [deployment, validation and Carelink rollback](docs/RUNBOOK.md).
+- [Radxa station bridge](station/README.md) and [Mac inference worker](mac-worker/README.md).
+- Build the appliance with `scripts/build-station.sh`: `VITE_MEETING_STATION=true` selects the station UI; `MI_STATION_MODE=true` keeps Go from starting upstream transcription/download features.
+
+This deployment uses systemd and the existing Caddy service; Docker is not installed on the board. The baseline ASR model is multilingual whisper.cpp base, with optional higher-quality candidates available for benchmarking. No multilingual accuracy or meeting throughput is claimed from the model choice alone.
+
+Carelink's application/configuration snapshot is saved and verified privately under `backups/carelink-20260911/` on this Mac. Its original board files are retained, and `deploy/radxa/restore-carelink.sh` restores the previous service/routing configuration. The snapshot is not a disk image. Backups, credentials, local runtime state and model files are excluded from Git.
+
+The `macos/` client (macOS 15+) and `backend/` hub are earlier native-client prototypes and are not the deployed station pipeline. Use `station/` plus `mac-worker/` for this hardware layout.
+
+This fork remains under MIT and retains the Scriberr copyright and history. The original upstream README follows; its general installation instructions and optional cloud/YouTube integrations do not describe the station deployment above.
 
 ---
 

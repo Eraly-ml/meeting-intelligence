@@ -1,48 +1,139 @@
-# Deployment runbook
+# Deployment and restoration runbook
 
-## 1. MacBook Air M5
+This runbook describes the actual systemd deployment on the existing Debian 11 board. The upstream Docker instructions below the project introduction in the main README apply to ordinary Scriberr, not this hackathon station.
 
-Install Homebrew, Python 3.11+, ffmpeg and Ollama. Then:
+## Hardware and addresses
 
-```bash
-cd mac-worker
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[mlx,gigaam,test]'
-cp .env.example .env
-ollama pull qwen3.5:4b-q4_K_M
-meeting-worker
+| Device/service | Current configuration |
+|---|---|
+| Meeting station | Radxa Cubie A7A, 6 GB RAM, Debian 11 CLI |
+| Browser address | `https://radxa-cubie-a7a.local/meeting-intelligence` |
+| Radxa LAN address | `192.168.8.57` |
+| Mac worker | MacBook Air M5, 16 GB unified memory, `192.168.8.82:8765` |
+| Ollama | Mac loopback, `127.0.0.1:11434` |
+| Station bridge | Radxa loopback, `127.0.0.1:8766` |
+| Go/embedded frontend | Radxa loopback, `127.0.0.1:8081` |
+
+These IPs are current LAN leases. Reserve them in the router or update the Mac bind address and `MI_STATION_WORKER_URL` when the network changes. The station requires a literal private IP for the Mac destination. The browser uses the Radxa hostname and never needs to enter a Mac IP.
+
+Caddy uses the board's existing local certificate authority. Clients must trust that authority to open HTTPS without a certificate prompt; distribute only its public root certificate. An mDNS-capable client should resolve `radxa-cubie-a7a.local` to the board. Direct IP access is not the configured HTTPS hostname.
+
+## Carelink backup before activation
+
+The saved private backup directory is `backups/carelink-20260911/` in this Mac workspace. It contains:
+
+- `carelink-consistent.tar.gz`: the consistent application/configuration snapshot taken for restoration.
+- `before-stop.tar.gz`: the earlier pre-stop snapshot.
+- `SHA256SUMS`, per-archive file manifests, and system/service/package inventories.
+
+Archive checksums and the consistent snapshot's file manifest were verified during the takeover work. To check the archive checksums again from the workspace:
+
+```sh
+cd backups/carelink-20260911
+shasum -a 256 -c SHA256SUMS
 ```
 
-Before setting `MI_HF_OFFLINE=true`, prefetch the selected ASR checkpoints once. For the first integration test use `MI_HF_OFFLINE=false`; after the weights are cached, switch it back to `true` and disconnect Internet to prove locality.
+This backup includes private application configuration and data. It is excluded from Git, as are `.local/` runtime secrets, local databases and model files. It is **not a full disk image** and does not replace an OS/media backup. Carelink's original files are also retained on the board; routine rollback uses those files without unpacking an archive over the live OS.
 
-For Radxa access set `MI_BIND_HOST=0.0.0.0`, a random `MI_API_TOKEN`, and `MI_ALLOWED_ORIGINS=http://radxa.local:8080`. Do this only on a trusted private network.
+Activation captures the original Caddy configuration and Carelink service state in `/var/backups/meeting-intelligence/carelink-before-takeover/`. The activation script requires that an off-board backup has already been checked. It starts and health-checks the new services before switching routing and disabling `carelink-gateway.service`.
 
-## 2. Radxa Cubie A7A
+## Build the station release on the Mac
 
-Install a 64-bit Debian/Ubuntu image, Docker Engine and Compose. Store Docker data on NVMe/SSD rather than microSD.
+The UI has a compile-time station flag and Go has a separate runtime station flag. Both are required for the board to remain an interface/archive appliance without bootstrapping upstream transcription software.
 
-```bash
-cd deploy/radxa
-docker compose up -d --build
+Use the project build script:
+
+```sh
+./scripts/build-station.sh
 ```
 
-Open `http://radxa.local:8080/meeting-intelligence`, enter `http://macbook.local:8765` and the worker token, then test the connection.
+Its frontend step runs `VITE_MEETING_STATION=true npm run build` in `web/frontend`, copies `dist` to the Go embed directory `internal/web/dist`, and cross-compiles Go for Linux ARM64 with `CGO_ENABLED=0`. The embedded directory must exist before compiling or testing Go. Ordinary `npm run build` preserves the upstream Scriberr interface, so it must not replace the station build by accident.
 
-## 3. Acceptance test
+No Docker daemon is needed on the Radxa. The station service uses a Python virtual environment compatible with Debian 11's Python 3.9. Build and dependency downloads occur while preparing the release; keep those separate from an offline demo.
 
-1. Submit one short prepared transcript; verify decisions and evidence quotes.
-2. Submit 5–10 minutes each of Kazakh, Russian, English, and KK/RU code-switching.
-3. Compare Shyngys and GigaAM on the same KK/RU clips; keep the lower normalized WER/CER profile.
-4. Check an explicit decision, a rejected proposal, a changed deadline, an unnamed assignee, and a missing deadline.
-5. Open JSON, CSV and PDF; verify Cyrillic/Kazakh glyphs and CSV columns.
-6. Restart the Mac worker mid-job; verify the job becomes retryable.
-7. Disconnect WAN and repeat a full run.
+## Mac inference service
 
-## Practical memory profiles
+The canonical service is `mac-worker/`. Follow [its setup instructions](../mac-worker/README.md) for dependency and model provisioning. The older `engine/` and native-client `backend/` are optional prototypes and are not part of this deployed pipeline.
 
-- 16 GB unified memory: start with Qwen 2B or 4B Q4, one job at a time; close other heavy apps.
-- 24 GB or more: Qwen 4B Q4 is the normal target with ASR models loaded sequentially.
-- Radxa: 8 GB is workable for UI/database; 16 GB is preferable. It is not the primary LLM/ASR compute node.
+The current provisioned launch helper is:
 
-Exact throughput must be measured on the actual Mac and meeting audio; the code deliberately serializes heavy jobs to avoid memory pressure on a fanless Air.
+```sh
+python3 scripts/run-provisioned-mac.py ollama
+```
+
+Run the worker separately:
+
+```sh
+python3 scripts/run-provisioned-mac.py worker
+```
+
+This helper uses the private workspace `.local/` environment and installed models. The per-user LaunchAgent labels are `com.meeting-intelligence.ollama` and `com.meeting-intelligence.worker`; the deployment installs them only after the actual services have been checked. Do not start a second foreground instance when its LaunchAgent already owns the port.
+
+The provisioned launcher applies `deploy/mac/inference-local.sb`: the worker and Ollama can initiate direct IP connections only to this Mac, including its own LAN interfaces. The Radxa can still connect to the worker and receive responses. This supplements application URL restrictions and offline model settings; it is not a blanket DNS/IPC audit. Apple's `sandbox-exec` mechanism is deprecated, so validate it after macOS upgrades. The ordinary manual worker command does not apply this extra process policy.
+
+The Mac configuration uses a private worker token, a LAN bind address for port 8765, local ffmpeg/Whisper/ONNX paths, and `MI_OLLAMA_URL=http://127.0.0.1:11434`. Ollama uses `OLLAMA_NO_CLOUD=1`, one parallel request and one loaded model. Runtime model downloads are disabled. Keep the Mac awake while processing; the board retains queued sources if the Mac sleeps or disconnects.
+
+The initial ASR model is multilingual whisper.cpp base. Qwen3.5 4B runs locally on the M5. Optional larger ASR profiles are available in code but are not a measured quality or latency improvement until compared on this hardware. Speaker separation is available only when the local diarization dependencies and models are present.
+
+## Board installation and configuration
+
+Stage the built application, a `meeting_intelligence_station-*.whl`, `deploy/radxa/`, and the two private environment files on the board. [install-station.sh](../deploy/radxa/install-station.sh) installs that staged release; it requires the dedicated `meeting-station` user and a provisioned `/opt/meeting-intelligence/venv` with its dependencies already present. The installer and [activation script](../deploy/radxa/activate-station.sh) are separate so all artifacts and configuration can be checked before changing the active application.
+
+```sh
+sudo /path/to/staged-release/deploy/radxa/install-station.sh /path/to/staged-release
+```
+
+| Path | Purpose |
+|---|---|
+| `/opt/meeting-intelligence/bin/scriberr` | Cross-compiled Go server with embedded station UI |
+| `/opt/meeting-intelligence/venv` | Station Python environment |
+| `/etc/meeting-intelligence/scriberr.env` | Go station settings and private account/session configuration |
+| `/etc/meeting-intelligence/station.env` | Station token, separate Mac token, worker IP, archive settings |
+| `/etc/meeting-intelligence/Caddyfile.station` | Prepared station routing |
+| `/var/lib/meeting-intelligence` | Scriberr account database and local session state |
+| `/var/lib/meeting-station` | Original sources, SQLite queue, results and exports |
+
+`scriberr.env` must set `MI_STATION_MODE=true` and bind the Go service to `127.0.0.1:8081`. `station.env` must bind to `127.0.0.1:8766`, use `/var/lib/meeting-station`, and set `MI_STATION_WORKER_URL=http://192.168.8.82:8765`. `MI_STATION_WORKER_TOKEN` matches the Mac's `MI_API_TOKEN`; `MI_STATION_TOKEN` is a different random token shared with station browsers. Keep the actual values in the private environment files, not in this repository or URLs.
+
+The service units are [meeting-station.service](../deploy/radxa/meeting-station.service) and [scriberr-station.service](../deploy/radxa/scriberr-station.service). Both run as `meeting-station` with separate state directories. The bridge user also belongs to `audio` for an attached ALSA microphone. Recording availability requires `arecord` and an actual capture device; selecting Record in the UI starts the Radxa microphone, not the browser microphone.
+
+The [Caddy configuration](../deploy/radxa/Caddyfile.station.example) retains `radxa-cubie-a7a.local` and its existing internal CA. `/api/meeting-worker/*` goes to the bridge with its prefix removed. Other browser requests go to the Go service. The station scripts retain Carelink's files, networking and SSH configuration.
+
+After installation and configuration checks, run the staged activation script as root on the board. Inspect service status without printing secrets:
+
+```sh
+sudo /opt/meeting-intelligence/activate-station.sh
+sudo systemctl status meeting-station.service scriberr-station.service caddy.service --no-pager
+sudo journalctl -u meeting-station.service -u scriberr-station.service -n 60 --no-pager
+```
+
+Open the HTTPS browser address, create or use the Scriberr station account, then pair the meeting archive with the **station token**. Pairing checks the authenticated capabilities endpoint. Public `/health` endpoints report process liveness only. The browser's Connection control can disconnect its tab session.
+
+## Acceptance checks and known limits
+
+These steps are the acceptance procedure; they are not a claim that every step has already passed on the hardware.
+
+1. Upload a prepared text transcript with a changed decision, an unnamed owner and a missing deadline. Verify the report and its source links, including any review flags.
+2. Upload actual MP3, WAV and M4A recordings, including Russian, Kazakh, English and mixed speech. Compare the transcript and speaker changes with the source; record model, duration, latency and errors.
+3. Stop the Mac worker, upload another source to the board, and confirm it stays in the archive. Restart the worker and verify processing continues without duplicate jobs.
+4. If a board microphone is attached, record and stop a real session. Check the complete archived audio and a transcript from the resulting job.
+5. Open the transcript, follow evidence links, load audio once, and seek from a timestamp. Check anonymous speaker labels rather than assuming they are identities.
+6. Download JSON, CSV and PDF. Confirm Cyrillic/Kazakh glyphs, action-item columns, owners/deadlines and review flags. Completed results and exports should remain available when the Mac is offline.
+7. Restart services during queued work and test explicit retry after failed inference. A completed UI job must have all exports durably cached on the board.
+8. Disconnect WAN while retaining the office LAN and repeat a complete audio-to-report run. Inspect browser/runtime traffic for external requests. **A full WAN-disconnected validation has not yet been established.**
+
+The system serializes Mac inference, and board recording is processed after stopping. Meeting detection, live transcript updates from station recording, and name-based speaker identification are not implemented in the deployed station. ASR accuracy, diarization quality, concurrency throughput and long-session behavior require representative tests rather than extrapolation from a short smoke recording.
+
+Automated checks are available in `station/tests`, `mac-worker/tests`, and the Go packages. Frontend validation uses the TypeScript production build and ESLint; browser acceptance is a separate check. See the service READMEs for their exact test commands.
+
+## Restore Carelink after the hackathon
+
+The rollback script is [deploy/radxa/restore-carelink.sh](../deploy/radxa/restore-carelink.sh), copied to `/opt/meeting-intelligence/restore-carelink.sh` on the board. Run it there:
+
+```sh
+sudo /opt/meeting-intelligence/restore-carelink.sh
+```
+
+It validates and restores the saved pre-takeover Caddy file, restores the captured Carelink gateway enabled/active state, and disables the two meeting station services. The existing Carelink code and data are used in place. Meeting recordings and the hackathon installation are retained for export or another deployment; neither application is erased.
+
+Check Carelink's original HTTPS interface and its gateway service after rollback. If the original board files or storage have been damaged independently, use the private consistent backup and its manifests for a separate recovery; the configuration rollback script does not perform disk-image restoration.

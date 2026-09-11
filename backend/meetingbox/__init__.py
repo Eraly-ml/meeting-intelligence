@@ -1,0 +1,1 @@
+"""MeetingBox local meeting hub."""
