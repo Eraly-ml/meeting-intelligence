@@ -5,8 +5,9 @@ private LAN to an Apple M5 Mac with 16 GB unified memory.
 
 ## Checks completed
 
-- 17 Mac worker tests, including the station-to-worker multipart contract,
-  authentication, durable jobs, bounded uploads, citations and Unicode exports.
+- 31 Mac worker tests, including the station-to-worker multipart contract,
+  authentication, durable jobs, bounded uploads, source-derived summaries,
+  polarity checks, citations and Unicode/PDF exports.
 - 53 Python station/native-foundation checks, including disconnected-worker
   recovery and cancellation/retry races.
 - Go API/config/server tests, including the station-mode guard that disables
@@ -114,8 +115,8 @@ That report-quality failure prompted a separate fix: the worker discards model
 summary prose and derives each summary line from a supported structured item
 after semantic verification, with aligned item IDs and evidence. A schema
 clarification distinguishes explicit agreed decisions from topic headings.
-The worker suite now has **23 passing tests**, including unsupported-summary
-and reconciliation regressions. A direct real-Qwen rerun recovered the launch
+The worker suite now has **31 passing tests**, including unsupported-summary,
+balanced-summary, polarity and reconciliation regressions. A direct real-Qwen rerun recovered the launch
 postponement as a decision, retained the Timur/Monday task, and produced exactly
 those two supported summary facts. This fixes the observed fixture failure;
 it does not establish perfect classification or accuracy on other meetings.
@@ -134,6 +135,62 @@ its stored permission entry appearing allowed. It was running an older Chrome
 version than the installed browser used by the isolated tests. The station was
 then opened in Safari, and the user confirmed that its login page loaded. No
 macOS privacy permissions were changed.
+
+## Exact two-minute rubric run
+
+The final deployed acceptance fixture is exactly **120.000 seconds** of 16 kHz
+mono PCM synthetic English speech. Its SHA-256 is
+`ab0c72e1255cf689de7bf882a15b508546c118b853bfbe546d8e637fe18ca716`.
+The complete station upload, Mac Whisper transcription, Sherpa diarization,
+local Qwen3.5 extraction and semantic checking, and board-cached exports finished
+in **72.606 seconds**. The observed milestones were 3.449 seconds to
+transcribing, 7.557 to diarizing, 13.782 to extracting and 72.506 to completed.
+The result had 40 timestamped transcript segments, five summary sentences with
+five aligned evidence sources, four decisions, one topic, three actions, two
+risks and two generated question candidates. PDF, JSON and CSV sizes were
+37,533, 20,700 and 1,038 bytes.
+
+Manual comparison with the fixture manifest found the three intended actions:
+Alex owns the Monday medium-priority rollout checklist, Dana owns the Tuesday
+high-priority upload/recovery tests, and the agreed support handover has no owner
+or deadline. The report retained the Wednesday launch, local-processing choice,
+open battery-budget question and both stated risks. It did not turn the earlier
+Dana/Friday proposal into the final assignment, adopt cloud processing, approve
+a battery purchase or invent an ISO calendar date.
+
+The model also classified “Battery purchase was not approved” as a second open
+question with a mismatched excerpt. The semantic checker marked it failed and
+`needs_review`; it was excluded from the executive summary and the main verified
+question list. The custom UI places it in a separate **AI suggestions to review**
+section. This is evidence that source checks contain an observed error; it is
+not a claim of perfect extraction.
+
+The optional online-meeting browser was stopped for this run. During processing,
+the Mac worker had an established connection to the Radxa and used Ollama only
+on loopback. The Radxa showed the station-to-Mac connection and local service
+listeners, with no established external peer. This process-level observation
+supports the local data path, while a physically disconnected WAN test remains
+outstanding.
+
+After deploying the custom Meeting Station frontend, a clean browser session
+passed login, station pairing and archive selection. The selected benchmark
+showed five summary lines, Topics & key points, the Owner/Task/Deadline/Priority
+table, one verified open question and one separate review candidate. The browser
+also downloaded the calendar export successfully. No visible
+Scriberr text appeared in the station UI. The check also captured the full report
+at desktop size and confirmed the generated page did not overflow horizontally.
+
+The bonus calendar export was added after the timed run, so its generation is not
+included in the 72.606-second measurement. The benchmark calendar was generated
+locally and cached on the Radxa: it is 1,553 bytes, uses RFC 5545 CRLF line endings,
+contains three source-checked VTODO entries and excludes the failed candidate.
+
+The fixture uses clean synthesized voices with no overlap, room noise, human
+accents or language switching. Its timing is a repeatable performance result,
+not a word-error-rate or real-meeting accuracy measurement. An earlier exact run
+with a 16K Qwen context failed visibly after 194.278 seconds when the accumulated
+protocol no longer fit; the worker now uses a 32K default and the final run above
+completed successfully.
 
 ## Carelink preservation
 

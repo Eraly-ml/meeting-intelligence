@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     api_token: str = ""
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3.5:4b"
-    ollama_context: int = 16384
+    # A two-minute, evidence-rich transcript and the strict protocol schema fit
+    # in one conservative request at 32K. Smaller contexts can strand a valid
+    # transcript once the accumulated protocol itself consumes the next chunk.
+    ollama_context: int = 32768
     protocol_chunk_chars: int = 24000
     asr_kk_ru: str = "whisper-cpp"
     asr_en: str = "whisper-cpp"

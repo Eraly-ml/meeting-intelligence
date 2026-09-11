@@ -130,7 +130,8 @@ def test_unsolicited_model_summary_cannot_bypass_fact_review(tmp_path, semantic)
     assert not any('cancelled' in line or 'superseded' in line for line in result.executive_summary)
     if semantic:
         assert {claim['kind'] for claim in reviewed} == {'decision', 'action'}
-        assert result.executive_summary == ['Postpone the launch until the report is complete.', 'Send report · Owner: Timur · Due: Monday']
+        assert result.executive_summary == ['Postpone the launch until the report is complete.',
+            'Timur is responsible for the task “Send report”.', 'The deadline for “Send report” is Monday.']
         assert result.executive_summary_sources[0].evidence.segment_ids == ['s2']
     else:
         assert not reviewed and result.executive_summary == []

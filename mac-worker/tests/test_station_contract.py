@@ -26,7 +26,8 @@ def test_actual_station_worker_multipart_and_cached_exports(tmp_path):
         remote = MacClient(station_settings, transport=httpx.ASGITransport(app=mac))
         station = create_station(station_settings, mac=remote, start_worker=False)
         report = MeetingProtocol(metadata=MeetingMetadata(title='Planning'), action_items=[ActionItem(
-            id='a1', task='Send report', assignee='Dana', deadline_text='Monday', evidence=Evidence(segment_ids=['seg_00001']))])
+            id='a1', task='Send report', assignee='Dana', deadline_text='Monday', source_check='passed',
+            evidence=Evidence(segment_ids=['seg_00001']))])
         async with mac.router.lifespan_context(mac), station.router.lifespan_context(station):
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=station), base_url='http://station',
                                           headers={'Authorization': 'Bearer ' + station_token}) as client:
@@ -53,5 +54,7 @@ def test_actual_station_worker_multipart_and_cached_exports(tmp_path):
                 assert result['protocol']['action_items'][0]['assignee'] == 'Dana'
                 pdf = await client.get('/v1/jobs/' + job_id + '/export/pdf')
                 assert pdf.status_code == 200 and pdf.content.startswith(b'%PDF-')
+                calendar = await client.get('/v1/jobs/' + job_id + '/export/ics')
+                assert calendar.status_code == 200 and b'BEGIN:VTODO' in calendar.content
                 assert (await client.get('/v1/jobs/' + job_id)).json()['stage'] == 'completed'
     asyncio.run(scenario())

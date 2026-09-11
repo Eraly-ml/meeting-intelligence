@@ -1,6 +1,6 @@
 # Architecture
 
-The hackathon deployment uses a **Radxa Cubie A7A with 6 GB RAM and Debian 11 CLI** as the meeting station, and a **MacBook Air M5 with 16 GB unified memory** as the inference worker. The native Mac client targets macOS 15 or later, but the deployed station interface is the browser application in this Scriberr fork.
+The hackathon deployment uses a **Radxa Cubie A7A with 6 GB RAM and Debian 11 CLI** as the meeting station, and a **MacBook Air M5 with 16 GB unified memory** as the inference worker. The native Mac client targets macOS 15 or later. The deployed browser is the custom Meeting Station interface, with selected server foundations retained from the open-source Scriberr repository.
 
 ```text
 Browser on the office LAN
@@ -11,7 +11,7 @@ http://192.168.8.57
        │
        ├─ /meeting-intelligence
        │      Go + embedded React UI · 127.0.0.1:8081
-       │      Scriberr account authentication
+       │      Meeting Station account authentication
        │
        └─ /api/meeting-worker/*
               Python station bridge · 127.0.0.1:8766
@@ -20,7 +20,7 @@ http://192.168.8.57
               ├─ isolated Chromium → meeting playback → complete WAV
               ├─ audio/text uploads → original sources on disk
               ├─ SQLite archive and persistent forwarding queue
-              └─ cached transcript, protocol, JSON, CSV and PDF
+              └─ cached transcript, protocol, JSON, CSV, PDF and ICS
                          │
                          │ private LAN · separate worker Bearer token
                          ▼
@@ -29,7 +29,7 @@ MacBook Air M5 · 192.168.8.82:8765
               ├─ ffmpeg → local ASR → optional speaker diarization
               ├─ Qwen → chronological protocol reconciliation
               ├─ evidence checks and semantic verification
-              └─ Unicode JSON/CSV/PDF generation
+              └─ Unicode JSON/CSV/PDF and RFC 5545 ICS generation
                          │
                          ▼
               Ollama · 127.0.0.1:11434
@@ -51,7 +51,7 @@ The browser sends requests to its own station origin. It does not need the Mac a
 
 On the board, the application is installed under `/opt/meeting-intelligence`; private configuration is in `/etc/meeting-intelligence`. The station archive is `/var/lib/meeting-station` and Scriberr account data is `/var/lib/meeting-intelligence`. `meeting-station.service` and `scriberr-station.service` run as the dedicated `meeting-station` user. Docker is not installed or required for this deployment.
 
-`VITE_MEETING_STATION=true` builds a browser interface that opens the meeting archive and omits the upstream transcription, YouTube, cloud-provider and browser-recorder navigation. `MI_STATION_MODE=true` also disables the corresponding Go endpoints and prevents Go from initializing transcription adapters or downloading their environments. A normal Scriberr build retains the upstream features; these two flags define the Radxa appliance build.
+`VITE_MEETING_STATION=true` builds the custom branded login, meeting archive and evidence-backed report workspace, while omitting the upstream transcription, YouTube, cloud-provider and browser-recorder navigation. `MI_STATION_MODE=true` also disables the corresponding Go endpoints and prevents Go from initializing transcription adapters or downloading their environments. A normal upstream-compatible build retains the original features; these two flags define the Radxa appliance build.
 
 ## Recording and queue behavior
 
@@ -70,7 +70,7 @@ recording (board only) → queued → preprocessing → transcribing
                                       → exporting → completed
 ```
 
-The Radxa can accept multiple jobs while the Mac processes them serially. A disconnected Mac leaves sources and jobs on the station, with visible status and automatic retry backoff. Interrupted Mac inference becomes a retryable failure. Cancellation preserves the source and lets an active model call finish safely. The station marks a meeting complete only after the result and all three export files are cached on the board; those remain accessible without the Mac.
+The Radxa can accept multiple jobs while the Mac processes them serially. A disconnected Mac leaves sources and jobs on the station, with visible status and automatic retry backoff. Interrupted Mac inference becomes a retryable failure. Cancellation preserves the source and lets an active model call finish safely. The station marks a meeting complete only after the result and its JSON, CSV, PDF and calendar exports are cached on the board; those remain accessible without the Mac.
 
 The UI polls status and archive metadata. Audio is fetched with authentication only when the user loads that recording, and is not re-downloaded on every status update. Transcripts show timestamps and anonymous speaker labels. Evidence links open the cited transcript passages; an available audio player can seek to the source timestamp.
 
@@ -84,6 +84,6 @@ Capabilities distinguish a reachable worker from installed speech-model resource
 
 ## Offline operation and preserved Carelink system
 
-All runtime inference uses installed binaries and local model files. Ollama binds to loopback with cloud features disabled. The station refuses public worker destinations, redirects and environment HTTP proxies. The station UI loads its fonts and assets locally, without Google Fonts or CDN requests. Downloads during provisioning are separate from runtime inference. A full WAN-disconnected acceptance run still needs to be recorded; configuration and automated tests alone are not evidence that this hardware passed it.
+All runtime inference uses installed binaries and local model files. Ollama binds to loopback with cloud features disabled. The station refuses public worker destinations, redirects and environment HTTP proxies. The station UI loads its fonts and assets locally, without Google Fonts or CDN requests. Downloads during provisioning are separate from runtime inference. During the exact two-minute run, the optional online browser was stopped and process-level socket inspection found only the Radxa–Mac worker connection plus loopback Ollama on the Mac, with no established external peer on the Radxa. A physically WAN-disconnected run remains outstanding.
 
 Carelink is preserved for restoration. Its consistent application/configuration backup is stored privately on this Mac at `backups/carelink-20260911/`, with checksums and file manifests. This is an application/configuration backup, **not a bootable disk image**. The board's existing Carelink code and data remain in place while its service and active Caddy routing are switched for the hackathon. SSH, the OS and existing certificate authority are retained. See [the runbook](RUNBOOK.md) for activation and rollback.

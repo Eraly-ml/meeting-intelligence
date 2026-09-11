@@ -1,6 +1,6 @@
 # Mac inference worker
 
-This is the production Mac service used by the Scriberr Meeting Intelligence UI and the Radxa station bridge. It retains the fork's `/v1/jobs` contract, durable jobs, rich protocol schema and JSON/CSV/PDF exports. The separate `engine/` service is an earlier compatibility implementation; do not run both services on port 8765.
+This is the production Mac service used by the custom Meeting Station UI and the Radxa station bridge. It provides the `/v1/jobs` contract, durable jobs, rich protocol schema and JSON/CSV/PDF/ICS exports. The separate `engine/` service is an earlier compatibility implementation; do not run both services on port 8765.
 
 Run on Python 3.11+ (provisioned development environment: `.local/mac-venv`, Python 3.12). From the repository root:
 
@@ -42,16 +42,18 @@ GET  /v1/jobs/{uuid}                 status
 POST /v1/jobs/{uuid}/retry           failed/cancelled jobs
 POST /v1/jobs/{uuid}/cancel          cooperative cancellation
 GET  /v1/jobs/{uuid}/result          rich JobResult
-GET  /v1/jobs/{uuid}/export/{format} json, csv, pdf
+GET  /v1/jobs/{uuid}/export/{format} json, csv, pdf, ics
 ```
 
 `Idempotency-Key` must be a UUID. Replaying the same key, normalized manifest and source SHA256 returns the existing job; changing content returns 409. Accepted audio extensions: MP3, WAV, M4A, WebM, OGG, CAF, FLAC. Uploads default to 512 MiB and recordings to four hours. Temporary uploads are removed after rejection. Original sources remain until an explicit retention operation.
 
 One process owns the SQLite directory and one consumer processes its durable queue. Restart preserves queued jobs and marks interrupted jobs retryable. API health and status continue responding during model work. Whisper, ffmpeg and Sherpa subprocesses have time limits; cancellation lets the active inference finish, and a retry cannot race it. Results are atomically written before completion is published.
 
-Qwen progressively reconciles the transcript in chronological windows, carrying the previous protocol so later owners/deadlines can replace earlier ones. No transcript is silently truncated. Excessive accumulated report/evidence size fails visibly or flags individual evidence as unavailable. Final cited topics, decisions, questions, tasks and risks receive a second local semantic check against their excerpts; unsupported claims are marked `source_check=failed` and `review_status=needs_review`.
+Qwen progressively reconciles the transcript in chronological windows, carrying the previous protocol so later owners/deadlines can replace earlier ones. The default 32K context fits the strict schema plus the two-minute acceptance fixture in one conservative request on the 16 GB Mac. No transcript is silently truncated. Excessive accumulated report/evidence size fails visibly or flags individual evidence as unavailable. Final cited topics, decisions, questions, tasks and risks receive a second local semantic check against their excerpts; unsupported claims are marked `source_check=failed` and `review_status=needs_review`.
 
-Executive summaries are assembled from supported, reviewed structured facts. Freeform model summaries are discarded and never passed into later reconciliation. The existing `executive_summary` string array remains compatible with clients; the aligned `executive_summary_sources` array provides the source `item_id` and copied evidence for each line. Facts requiring review are excluded, and disabling semantic verification leaves the summary empty. Decisions and action items take priority; supported topics, questions and risks may fill remaining lines. This prevents a separate summary generation step from adding unsupported claims, but the local verifier can still make errors, and extraction can omit or miscategorize a fact. Review the cited speech before relying on completeness or correctness.
+Executive summaries are assembled from supported, reviewed structured facts. Freeform model summaries are discarded and never passed into later reconciliation. The existing `executive_summary` string array remains compatible with clients; the aligned `executive_summary_sources` array provides the source `item_id` and copied evidence for each line. Facts requiring review are excluded, and disabling semantic verification leaves the summary empty. Decisions and action items take priority; supported topics, questions and risks may fill remaining lines. The target is three to five sentences when enough facts exist: an action's responsibility and deadline can become separate supported sentences with the same source item. Sparse or empty speech is never padded with invented information. This prevents a separate summary generation step from adding unsupported claims, but the local verifier can still make errors, and extraction can omit or miscategorize a fact. Review the cited speech before relying on completeness or correctness.
+
+PDF exports include the summary, decisions, topics and key points, open questions, risks, action table and evidence references for every structured section. Summary references point to their source items, and available transcript timestamps are retained in the evidence appendix.
 
 Generated human-confirmation flags are removed, and calendar dates absent as explicit ISO dates in evidence are cleared. Unsupported ISO dates in generated prose are replaced with a visible review marker; original transcript text is preserved.
 

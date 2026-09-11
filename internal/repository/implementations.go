@@ -97,7 +97,10 @@ func (r *jobRepository) ListWithParams(ctx context.Context, offset, limit int, s
 
 	// Handle delta sync if updatedAfter provided
 	if updatedAfter != nil {
-		db = db.Unscoped().Where("updated_at > ?", *updatedAfter)
+		// A GORM soft delete advances deleted_at without necessarily touching
+		// updated_at. Include that timestamp so clients can remove deleted jobs
+		// from an incremental archive sync.
+		db = db.Unscoped().Where("updated_at > ? OR deleted_at > ?", *updatedAfter, *updatedAfter)
 	}
 
 	// Apply search filter

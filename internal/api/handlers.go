@@ -923,7 +923,10 @@ func (h *Handler) ListTranscriptionJobs(c *gin.Context) {
 
 	var updatedAfter *time.Time
 	if updatedAfterStr != "" {
-		if t, err := time.Parse(time.RFC3339, updatedAfterStr); err == nil {
+		// Query decoding turns an unescaped '+' timezone separator into a space.
+		// Accept that common client encoding so delta sync still applies outside UTC.
+		normalized := strings.ReplaceAll(updatedAfterStr, " ", "+")
+		if t, err := time.Parse(time.RFC3339, normalized); err == nil {
 			updatedAfter = &t
 		}
 	}

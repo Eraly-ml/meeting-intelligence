@@ -158,7 +158,7 @@ class Store:
                 return
             payload.update(stage="completed", error_code=None, error_message=None, result_path=job_id + "/result.json")
             result["job"] = payload
-            result["exports"] = {format_name: "/v1/jobs/{}/export/{}".format(job_id, format_name) for format_name in ("json", "csv", "pdf")}
+            result["exports"] = {format_name: "/v1/jobs/{}/export/{}".format(job_id, format_name) for format_name in ("json", "csv", "pdf", "ics")}
             self._write(db, row, payload, result=json.dumps(result, ensure_ascii=False, allow_nan=False), action=None)
 
     def result(self, job_id):

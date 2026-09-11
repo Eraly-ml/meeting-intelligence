@@ -171,7 +171,7 @@ export function submitMeeting(config: WorkerConfig, input: {
 export async function loadAudio(config: WorkerConfig, id: string, signal: AbortSignal): Promise<Blob> {
   return (await response(config, `/v1/jobs/${encodeURIComponent(id)}/audio`, { signal })).blob()
 }
-export async function downloadExport(config: WorkerConfig, id: string, format: 'json' | 'csv' | 'pdf'): Promise<void> {
+export async function downloadExport(config: WorkerConfig, id: string, format: 'json' | 'csv' | 'pdf' | 'ics'): Promise<void> {
   const blob = await (await response(config, `/v1/jobs/${encodeURIComponent(id)}/export/${format}`)).blob()
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

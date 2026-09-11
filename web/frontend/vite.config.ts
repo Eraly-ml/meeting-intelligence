@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from "path"
@@ -6,24 +6,36 @@ import path from "path"
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const station = loadEnv(mode, process.cwd(), '').VITE_MEETING_STATION === 'true'
+  return {
   plugins: [
     react(),
     tailwindcss(),
+    {
+      name: 'meeting-station-document',
+      transformIndexHtml(html) {
+        if (!station) return html
+        return html
+          .replace('<title>Scriberr - Audio Transcription</title>', '<title>Meeting Station · Your private meeting workspace</title>')
+          .replace('href="/favicon.svg"', 'href="/station-mark.svg"')
+          .replace('<link rel="apple-touch-icon" href="/icon512_rounded.png" />', '<meta name="theme-color" content="#14776b" /><meta name="application-name" content="Meeting Station" /><meta name="description" content="Your private workspace for meeting transcripts, decisions, action items and reports." />')
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: station ? ['station-mark.svg'] : ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Scriberr',
-        short_name: 'Scriberr',
-        description: 'Offline Audio Transcription',
-        theme_color: '#8936FF',
-        background_color: '#2EC6FE',
+        name: station ? 'Meeting Station' : 'Scriberr',
+        short_name: station ? 'Meeting Station' : 'Scriberr',
+        description: station ? 'Private meeting transcripts, decisions and next steps' : 'Offline Audio Transcription',
+        theme_color: station ? '#14776b' : '#8936FF',
+        background_color: station ? '#f7f8f4' : '#2EC6FE',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/',
-        id: 'scriberr-transcription',
-        icons: [
+        start_url: station ? '/meeting-intelligence' : '/',
+        id: station ? 'meeting-station' : 'scriberr-transcription',
+        icons: station ? [{ src: 'station-mark.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }] : [
           {
             src: 'icon512_maskable.png',
             sizes: '512x512',
@@ -89,4 +101,5 @@ export default defineConfig({
     }
   },
   base: "/",
+  }
 })

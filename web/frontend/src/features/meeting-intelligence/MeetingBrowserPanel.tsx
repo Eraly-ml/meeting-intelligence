@@ -85,7 +85,7 @@ export function MeetingBrowserPanel({ config, connected, jobs, onCreated, diariz
   return <section className="mi-browser-panel" aria-label="Online meeting browser">
     <div className="mi-browser-heading">
       <div className="mi-browser-icon"><Video /></div>
-      <div><h2>Bring your station into the call.</h2><p>Join with the Radxa, record the conversation, and process it on your Mac.</p></div>
+      <div><div className="mi-eyebrow">OPTIONAL · ONLINE CAPTURE</div><h2>Bring your station into the call.</h2><p>Meeting platforms need internet. Recording uploads and AI processing work locally.</p></div>
       <Button variant="outline" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-controls="mi-browser-controls">
         {expanded ? <ChevronUp /> : <ChevronDown />}{expanded ? 'Hide controls' : 'Join online meeting'}
       </Button>

@@ -1,10 +1,12 @@
 import { Header } from './Header'
+import { meetingStationMode } from '@/lib/stationMode'
 
 interface LayoutProps {
     children: React.ReactNode
 }
 
 export function Layout({ children }: LayoutProps) {
+    if (meetingStationMode) return <div className="ms-app-layout"><Header /><main className="ms-shell-content">{children}</main></div>
     const handleFileSelect = () => {
         // Default behavior: do nothing or maybe navigate to home?
         // For now, consistent with Settings page behavior

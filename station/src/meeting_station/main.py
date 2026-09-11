@@ -222,7 +222,7 @@ def create_app(settings=None, mac=None, start_worker=True, browser=None):
 
     @app.get("/v1/jobs/{job_id}/export/{format_name}")
     async def export(job_id: UUID, format_name: str):
-        if format_name not in {"pdf", "json", "csv"}:
+        if format_name not in {"pdf", "json", "csv", "ics"}:
             raise HTTPException(404, "Export format not found")
         app.state.store.result(str(job_id))
         path = app.state.store.exports / str(job_id) / ("meeting." + format_name)

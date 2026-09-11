@@ -1,6 +1,6 @@
 # Radxa meeting station bridge
 
-This is the Python 3.9 service deployed on the Radxa Cubie A7A. Scriberr continues to serve the Go/React interface. The station saves source recordings and a SQLite job queue locally, sends work to the Mac over the private LAN, then archives the transcript, protocol, JSON, CSV and PDF exports on the board. A disconnected Mac leaves jobs queued with visible errors and automatic backoff; accepted uploads remain on the Radxa.
+This is the Python 3.9 service deployed on the Radxa Cubie A7A. The custom Meeting Station interface is embedded in the Go server. The station saves source recordings and a SQLite job queue locally, sends work to the Mac over the private LAN, then archives the transcript, protocol, JSON, CSV, PDF and ICS exports on the board. A disconnected Mac leaves jobs queued with visible errors and automatic backoff; accepted uploads remain on the Radxa.
 
 The Mac runs `mac-worker/` on port 8765. The station runs on loopback port 8766. Caddy exposes the station as the same-origin `/api/meeting-worker/*` path, removing that prefix before forwarding. The browser needs only a station pairing token; the separate Mac worker token stays in the station environment.
 
@@ -34,7 +34,7 @@ After dependencies and model weights are installed, uploads, inference and repor
 | `POST /v1/jobs/{id}/retry` | Retry a failed or cancelled job |
 | `POST /v1/jobs/{id}/cancel` | Durable cooperative cancellation; source is retained |
 | `GET /v1/jobs/{id}/result` | Locally cached transcript and protocol |
-| `GET /v1/jobs/{id}/export/{pdf,json,csv}` | Locally archived download, available without the Mac |
+| `GET /v1/jobs/{id}/export/{pdf,json,csv,ics}` | Locally archived download, available without the Mac |
 | `GET /v1/jobs/{id}/audio` | Original source audio; authenticated range requests are supported |
 | `POST /v1/recordings/start` | Explicit ALSA microphone recording; JSON title/language/diarization options |
 | `POST /v1/recordings/{id}/stop` | Finalize the full WAV recording and enqueue Mac processing |
@@ -64,7 +64,7 @@ The viewing cookie is HttpOnly, SameSite Strict, scoped to the view path, and Se
 
 `queued → preprocessing → transcribing → diarizing (optional) → extracting → validating → exporting → completed`
 
-`recording` is a station-only pre-upload state. A job becomes `completed` only after all three exports and its result are present on the board. Failure and cancellation preserve the source. An interrupted forward request is replayed with the same UUID and content hash, so the Mac can acknowledge it without duplicate inference. Export downloads use fixed local paths, never paths returned by a remote worker.
+`recording` is a station-only pre-upload state. A job becomes `completed` only after all four exports and its result are present on the board. Failure and cancellation preserve the source. An interrupted forward request is replayed with the same UUID and content hash, so the Mac can acknowledge it without duplicate inference. Export downloads use fixed local paths, never paths returned by a remote worker.
 
 Browser captures first remain in `/var/lib/meeting-browser/recordings/` with UUID names and status metadata. Stopping imports and validates the WAV before making it available to the Mac queue. If import fails or the station restarts, the job stays in `recording` with `BROWSER_IMPORT_PENDING`; use **Stop and archive** again to recover the retained audio. A confirmed abnormal capture exit remains visible as a failed job even if a readable partial WAV was archived. Browser originals are retained after successful import and require deliberate archive management; the service never silently deletes them.
 

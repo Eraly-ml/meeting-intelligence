@@ -6,12 +6,18 @@ import { ScriberrLogo } from "@/components/ScriberrLogo";
 import { useNavigate } from "react-router-dom";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { Loader2, AlertCircle } from "lucide-react";
+import { meetingStationMode } from '@/lib/stationMode';
+import { StationAuth } from './StationAuth';
 
 interface LoginProps {
 	onLogin: (token: string) => void;
 }
 
 export function Login({ onLogin }: LoginProps) {
+	return meetingStationMode ? <StationAuth onAuthenticated={onLogin} /> : <ScriberrLogin onLogin={onLogin} />;
+}
+
+function ScriberrLogin({ onLogin }: LoginProps) {
 	const navigate = useNavigate();
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");

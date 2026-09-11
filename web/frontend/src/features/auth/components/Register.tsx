@@ -7,6 +7,8 @@ import { ScriberrLogo } from "@/components/ScriberrLogo";
 import { useNavigate } from "react-router-dom";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { Eye, EyeOff, Check, X } from "lucide-react";
+import { meetingStationMode } from '@/lib/stationMode';
+import { StationAuth } from './StationAuth';
 
 interface RegisterProps {
 	onRegister: (token: string) => void;
@@ -21,6 +23,10 @@ interface PasswordStrength {
 }
 
 export function Register({ onRegister }: RegisterProps) {
+	return meetingStationMode ? <StationAuth onAuthenticated={onRegister} setup /> : <ScriberrRegister onRegister={onRegister} />;
+}
+
+function ScriberrRegister({ onRegister }: RegisterProps) {
 	const navigate = useNavigate();
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");

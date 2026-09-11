@@ -147,6 +147,7 @@ def test_offline_queue_survives_restart_and_completes_with_local_exports(client,
     assert client.get("/v1/jobs/" + job_id).json()["stage"] == "completed"
     assert client.get("/v1/jobs/" + job_id + "/result").json()["transcript"]["raw_text"] == "Meeting test"
     assert client.get("/v1/jobs/" + job_id + "/export/pdf").content.startswith(b"%PDF-")
+    assert client.get("/v1/jobs/" + job_id + "/export/ics").content == b"fixture export"
     assert len(mac.uploads) == 1
 
 

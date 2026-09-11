@@ -139,7 +139,7 @@ These steps are the acceptance procedure; they are not a claim that every step h
 3. Stop the Mac worker, upload another source to the board, and confirm it stays in the archive. Restart the worker and verify processing continues without duplicate jobs.
 4. If a board microphone is attached, record and stop a real session. Check the complete archived audio and a transcript from the resulting job.
 5. Open the transcript, follow evidence links, load audio once, and seek from a timestamp. Check anonymous speaker labels rather than assuming they are identities.
-6. Download JSON, CSV and PDF. Confirm Cyrillic/Kazakh glyphs, action-item columns, owners/deadlines and review flags. Completed results and exports should remain available when the Mac is offline.
+6. Download JSON, CSV, PDF and ICS. Confirm Cyrillic/Kazakh glyphs, action-item columns, owners/deadlines, review flags and source-checked calendar tasks. Completed results and exports should remain available when the Mac is offline.
 7. Restart services during queued work and test explicit retry after failed inference. A completed UI job must have all exports durably cached on the board.
 8. Disconnect WAN while retaining the office LAN and repeat a complete audio-to-report run. Inspect browser/runtime traffic for external requests. **A full WAN-disconnected validation has not yet been established.**
 9. With WAN restored, join a real hosted meeting through the Radxa browser. Confirm that the participant is admitted, record spoken test decisions, and compare the archived sound, timestamps and final report. Opening a link or recording a synthetic tone does not establish successful meeting participation.

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .asr import get_adapter
 from .config import Settings
-from .exports import export_csv, export_json, export_pdf
+from .exports import export_csv, export_ics, export_json, export_pdf
 from .diarization import diarize
 from .protocol import call_ollama, validate_evidence
 from .schemas import (
@@ -103,10 +103,12 @@ class Pipeline:
                 "json": export_dir / "meeting.json",
                 "csv": export_dir / "action-items.csv",
                 "pdf": export_dir / "meeting.pdf",
+                "ics": export_dir / "action-items.ics",
             }
             export_json(paths["json"], protocol, transcript)
             export_csv(paths["csv"], protocol)
             export_pdf(paths["pdf"], protocol, font_path=self.config.pdf_font or None)
+            export_ics(paths["ics"], protocol)
 
             result_path = self.config.data_dir / "results" / f"{job.id}.json"
             completed = job.model_copy(update={"stage": JobStage.COMPLETED, "result_path": str(result_path),

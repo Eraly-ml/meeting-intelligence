@@ -28,6 +28,9 @@ function date(value: string, full = false) { const parsed = new Date(value); ret
 function size(bytes: number) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB` }
 function title(job: JobRecord) { return job.manifest?.title || 'Untitled meeting' }
 function Badge({ stage }: { stage: JobStage }) { return <span className={`mi-badge mi-stage-${stage}`}><span />{stageNames[stage] || stage}</span> }
+function isVerified(item: SourcedItem) {
+  return item.source_check === 'passed' && (item.review_status === 'unreviewed' || item.review_status === 'human_confirmed')
+}
 
 export function MeetingIntelligencePage() {
   const [token, setToken] = useState(() => readSession(tokenKey))
@@ -55,7 +58,7 @@ export function MeetingIntelligencePage() {
   const diarizationAvailable = caps?.station.worker_connected ? caps.diarization : undefined
 
   useEffect(() => {
-    document.title = 'Meeting Intelligence · Scriberr'
+    document.title = 'Meeting Station · Private meeting intelligence'
     // Older versions saved the Mac worker secret in localStorage. The station
     // now keeps that secret server-side and uses a separate tab-session token.
     try { localStorage.removeItem('mi.token'); localStorage.removeItem('mi.workerUrl') } catch { /* Storage may be disabled. */ }
@@ -119,7 +122,7 @@ export function MeetingIntelligencePage() {
 
   return <Layout><div className="mi-page">
     <header className="mi-heading">
-      <div><div className="mi-eyebrow">YOUR LOCAL MEETING STATION</div><h1>Conversations, with a next step.</h1><p>A shared archive. Clear decisions. Everything on your devices.</p></div>
+      <div><div className="mi-eyebrow">PRIVATE MEETING INTELLIGENCE</div><h1>From conversation to a clear plan.</h1><p>Upload a recording. Get the summary, decisions, and next steps — processed on your devices.</p></div>
       <div className="mi-heading-actions"><Button variant="outline" onClick={() => setRecordOpen(true)} disabled={!connected || !caps?.station.recording_available || Boolean(activeId)} title={!caps?.station.recording_available ? 'A microphone must be configured on the station' : undefined}><Mic />Record microphone</Button><Button onClick={() => setUploadOpen(true)} disabled={!connected}><Upload />Upload audio</Button></div>
     </header>
 
@@ -135,8 +138,6 @@ export function MeetingIntelligencePage() {
     {error && <div className="mi-notice mi-warning" role="alert"><AlertCircle /><span>{error}</span><button className="mi-icon-button" aria-label="Dismiss error" onClick={() => setError('')}><X /></button></div>}
     {activeId && <div className="mi-recording-banner"><span className="mi-recording-dot" /><div><strong>{activeJob ? title(activeJob) : 'Recording on the station'}</strong><small>Audio is being saved on your Radxa.</small></div><RecordingClock started={activeJob?.created_at} /><Button variant="outline" onClick={() => void perform(() => stopRecording(config, activeId))} disabled={actionBusy || !connected}><Square />Stop &amp; process</Button></div>}
 
-    <MeetingBrowserPanel config={config} connected={connected} jobs={jobs} onCreated={acceptJob} diarizationAvailable={diarizationAvailable} />
-
     <div className="mi-workspace">
       <aside className="mi-archive" aria-label="Meeting archive">
         <div className="mi-archive-heading"><h2>All meetings <span>{jobs.length}</span></h2><button className="mi-icon-button" aria-label="Refresh archive" title="Refresh archive" onClick={refresh} disabled={!token}><RefreshCw /></button></div>
@@ -151,7 +152,8 @@ export function MeetingIntelligencePage() {
         {selectedJob ? <MeetingDetail key={selectedJob.id} job={selectedJob} config={config} connected={connected} onError={setError} onRetry={() => void perform(() => retryJob(config, selectedJob.id))} onCancel={() => void perform(() => cancelJob(config, selectedJob.id))} busy={actionBusy} /> : <div className="mi-welcome"><div className="mi-welcome-art" aria-hidden="true"><span className="mi-art-orbit" /><div className="mi-art-paper"><AudioLines /><i /><i /><i /><span><Check /></span></div></div><div className="mi-eyebrow">FROM CONVERSATION TO CLARITY</div><h2>Good meetings don’t end<br />when the call does.</h2><p>Bring a recording. Leave with a transcript,<br />the decisions, and what happens next.</p><Button onClick={() => connected ? setUploadOpen(true) : setPairOpen(true)}>{connected ? <Upload /> : <LockKeyhole />}{connected ? 'Upload your first recording' : 'Connect to your station'}</Button><small>MP3, WAV, M4A, WebM or CAF</small></div>}
       </section>
     </div>
-    <footer className="mi-footer"><span>Meeting Intelligence <span>/</span> Powered by your devices</span><span><LockKeyhole />Local transcription and a private archive</span></footer>
+    <MeetingBrowserPanel config={config} connected={connected} jobs={jobs} onCreated={acceptJob} diarizationAvailable={diarizationAvailable} />
+    <footer className="mi-footer"><span>Meeting Station <span>/</span> Powered by your devices</span><span><LockKeyhole />Local transcription and a private archive</span></footer>
 
     <PairDialog open={pairOpen} onOpenChange={setPairOpen} connected={connected} onDisconnect={disconnect} onConnect={(value, station) => { saveSession(tokenKey, value); setToken(value); setCaps(station); setConnected(true); setConnectionError(''); setPairOpen(false); refresh() }} />
     <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} config={config} maxBytes={caps?.station.max_upload_bytes} diarizationAvailable={diarizationAvailable} onCreated={acceptJob} />
@@ -250,7 +252,7 @@ function MeetingDetail({ job, config, connected, onError, onRetry, onCancel, bus
   const [audioLoading, setAudioLoading] = useState(false)
   const [audioError, setAudioError] = useState('')
   const [exporting, setExporting] = useState(false)
-  const [format, setFormat] = useState<'json' | 'csv' | 'pdf'>('pdf')
+  const [format, setFormat] = useState<'json' | 'csv' | 'pdf' | 'ics'>('pdf')
   const audio = useRef<HTMLAudioElement>(null)
   const audioController = useRef<AbortController | null>(null)
   const audioObject = useRef('')
@@ -297,13 +299,25 @@ function MeetingDetail({ job, config, connected, onError, onRetry, onCancel, bus
   const speakers = useMemo(() => Array.from(new Set(segments.map(segment => segment.speaker).filter((speaker): speaker is string => Boolean(speaker)))), [segments])
   const filtered = segments.filter(segment => segment.text.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
   const processing = !finished.has(job.stage) && job.stage !== 'recording'
+  const verifiedTopics = result?.protocol.topics.filter(isVerified) || []
+  const verifiedDecisions = result?.protocol.decisions.filter(isVerified) || []
+  const verifiedActions = result?.protocol.action_items.filter(isVerified) || []
+  const verifiedQuestions = result?.protocol.open_questions.filter(isVerified) || []
+  const verifiedRisks = result?.protocol.risks.filter(isVerified) || []
+  const reviewItems = result ? [
+    ...result.protocol.topics.filter(item => !isVerified(item)).map(item => ({ kind: 'Topic', text: `${item.title}: ${item.text}`, item })),
+    ...result.protocol.decisions.filter(item => !isVerified(item)).map(item => ({ kind: 'Decision', text: item.text, item })),
+    ...result.protocol.action_items.filter(item => !isVerified(item)).map(item => ({ kind: 'Action item', text: item.task, item })),
+    ...result.protocol.open_questions.filter(item => !isVerified(item)).map(item => ({ kind: 'Open question', text: item.text, item })),
+    ...result.protocol.risks.filter(item => !isVerified(item)).map(item => ({ kind: 'Risk', text: item.text, item })),
+  ] : []
   const tabKeys = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'Home' || event.key === 'End') {
       event.preventDefault(); const next = event.key === 'Home' ? 'overview' : event.key === 'End' ? 'transcript' : tab === 'overview' ? 'transcript' : 'overview'; setTab(next); document.getElementById(`mi-tab-${next}`)?.focus()
     }
   }
   return <div>
-    <header className="mi-detail-header"><div className="mi-detail-topline"><Badge stage={job.stage} /><span>{date(job.created_at, true)}</span></div><h2>{title(job)}</h2><div className="mi-detail-meta"><span>{job.source_kind === 'text' ? <FileText /> : <Headphones />}{job.source_kind === 'text' ? 'Imported transcript' : 'Audio recording'}</span>{job.station?.source_bytes ? <span>{size(job.station.source_bytes)}</span> : null}{result?.protocol.metadata.duration_seconds != null && <span><Clock3 />{time(result.protocol.metadata.duration_seconds)}</span>}{result?.transcript.language && <span>{result.transcript.language.toUpperCase()}</span>}</div>{result && <div className="mi-exports"><select aria-label="Export format" value={format} onChange={event => setFormat(event.target.value as typeof format)}><option value="pdf">PDF report</option><option value="csv">CSV action items</option><option value="json">JSON result</option></select><Button variant="outline" size="sm" disabled={exporting || !connected} onClick={() => void exportFile()}>{exporting ? <Loader2 className="animate-spin" /> : <Download />}Export</Button></div>}</header>
+    <header className="mi-detail-header"><div className="mi-detail-topline"><Badge stage={job.stage} /><span>{date(job.created_at, true)}</span></div><h2>{title(job)}</h2><div className="mi-detail-meta"><span>{job.source_kind === 'text' ? <FileText /> : <Headphones />}{job.source_kind === 'text' ? 'Imported transcript' : 'Audio recording'}</span>{job.station?.source_bytes ? <span>{size(job.station.source_bytes)}</span> : null}{result?.protocol.metadata.duration_seconds != null && <span><Clock3 />{time(result.protocol.metadata.duration_seconds)}</span>}{result?.transcript.language && <span>{result.transcript.language.toUpperCase()}</span>}</div>{result && <div className="mi-exports"><select aria-label="Export format" value={format} onChange={event => setFormat(event.target.value as typeof format)}><option value="pdf">PDF report</option><option value="csv">CSV action items</option><option value="json">JSON result</option><option value="ics">Calendar tasks (.ics)</option></select><Button variant="outline" size="sm" disabled={exporting || !connected} onClick={() => void exportFile()}>{exporting ? <Loader2 className="animate-spin" /> : <Download />}Export</Button></div>}</header>
 
     {job.error_message && <div className="mi-job-error" role="status"><AlertCircle /><div><strong>{job.error_code === 'ENGINE_OFFLINE' ? 'Waiting for the Mac engine' : 'Processing needs attention'}</strong><p>{job.error_message}</p></div>{(job.stage === 'failed' || job.stage === 'cancelled') && <Button variant="outline" size="sm" disabled={busy || !connected} onClick={onRetry}><RefreshCw />Retry</Button>}</div>}
     {(job.stage === 'failed' || job.stage === 'cancelled') && !job.error_message && <div className="mi-job-error"><AlertCircle /><span>{job.stage === 'cancelled' ? 'Processing was cancelled. Your source is still saved.' : 'Processing failed. Your source is still saved.'}</span><Button variant="outline" size="sm" disabled={busy || !connected} onClick={onRetry}><RefreshCw />Retry</Button></div>}
@@ -316,16 +330,17 @@ function MeetingDetail({ job, config, connected, onError, onRetry, onCancel, bus
     {!loading && !result && !resultError && <div className="mi-detail-empty"><FileText /><strong>{job.stage === 'recording' ? 'Enjoy the conversation.' : 'The details are on their way.'}</strong><p>{job.stage === 'recording' ? 'Stop the station recording when you’re ready to create the transcript and report.' : job.stage === 'failed' || job.stage === 'cancelled' ? 'Retry processing to generate the transcript and meeting report.' : 'The transcript, decisions, and action items will appear here when processing finishes.'}</p></div>}
     {result && <>
       <div id="mi-overview" role="tabpanel" aria-labelledby="mi-tab-overview" hidden={tab !== 'overview'} className="mi-report">
-        <ReportSection title="The conversation, in brief" icon={<FileText />}><div className="mi-summary">{result.protocol.executive_summary.length ? result.protocol.executive_summary.map((line, index) => {
+        <ReportSection title="Executive summary" icon={<FileText />}><div className="mi-summary">{result.protocol.executive_summary.length ? result.protocol.executive_summary.map((line, index) => {
           const reference = result.protocol.executive_summary_sources?.[index]
           const source = reference && [...result.protocol.decisions, ...result.protocol.action_items, ...result.protocol.topics, ...result.protocol.open_questions, ...result.protocol.risks].find(item => item.id === reference.item_id)
           return <div className="mi-summary-item" key={index}><p>{line}</p>{source ? <EvidenceView item={source} onJump={jump} /> : <small className="mi-muted">Review this summary against the transcript and recording.</small>}</div>
         }) : <p className="mi-muted">No source-checked summary is available. Review the decisions and transcript.</p>}</div></ReportSection>
-        {Boolean(result.protocol.topics?.length) && <div className="mi-topics">{result.protocol.topics.map(topic => <span key={topic.id}>{topic.title || topic.text}</span>)}</div>}
-        <ReportSection title="Decisions" count={result.protocol.decisions.length} icon={<CheckCircle2 />}><ItemList items={result.protocol.decisions} onJump={jump} empty="No confirmed decisions were found." /></ReportSection>
-        <ReportSection title="What happens next" count={result.protocol.action_items.length} icon={<ArrowRight />}><div className="mi-items">{result.protocol.action_items.length ? result.protocol.action_items.map(item => <article className="mi-action-item" key={item.id}><span className="mi-task-box" /><div><p>{item.task}</p><div className="mi-action-meta"><span>{item.assignee || 'Unassigned'}</span><span><Clock3 />{item.deadline_text || 'No deadline specified'}</span>{item.priority !== 'not_specified' && <span className={`mi-priority mi-priority-${item.priority}`}>{item.priority}</span>}</div><EvidenceView item={item} onJump={jump} /></div></article>) : <p className="mi-muted">No action items were found.</p>}</div></ReportSection>
-        <div className="mi-report-columns"><ReportSection title="Open questions" icon={<AlertCircle />}><ItemList items={result.protocol.open_questions} onJump={jump} empty="No open questions were found." /></ReportSection><ReportSection title="Risks to keep in view" icon={<ShieldCheck />}><ItemList items={result.protocol.risks} onJump={jump} empty="No explicit risks were found." /></ReportSection></div>
-        <p className="mi-report-footnote"><ShieldCheck />Source checks compare extracted items with the transcript. Review decisions and task owners before sharing.</p>
+        <ReportSection title="Topics & key points" count={verifiedTopics.length} icon={<FileText />}><div className="mi-topic-list">{verifiedTopics.length ? verifiedTopics.map(topic => <article className="mi-topic-card" key={topic.id}><h4>{topic.title}</h4><p>{topic.text}</p><EvidenceView item={topic} onJump={jump} /></article>) : <p className="mi-muted">No source-checked topics were found.</p>}</div></ReportSection>
+        <ReportSection title="Decisions" count={verifiedDecisions.length} icon={<CheckCircle2 />}><ItemList items={verifiedDecisions} onJump={jump} empty="No source-checked decisions were found." /></ReportSection>
+        <ReportSection title="Action items" count={verifiedActions.length} icon={<ArrowRight />}>{verifiedActions.length ? <div className="mi-action-table-wrap" role="region" aria-label="Action items table" tabIndex={0}><table className="mi-action-table"><thead><tr><th scope="col">Owner</th><th scope="col">Task</th><th scope="col">Deadline</th><th scope="col">Priority</th></tr></thead><tbody>{verifiedActions.map(item => <tr key={item.id}><td><span className="mi-owner">{item.assignee || 'Unassigned'}</span></td><td><p>{item.task}</p><EvidenceView item={item} onJump={jump} /></td><td>{item.deadline_text || 'Not specified'}</td><td><span className={`mi-table-priority mi-priority-${item.priority}`}>{item.priority === 'not_specified' ? 'Not specified' : item.priority}</span></td></tr>)}</tbody></table></div> : <p className="mi-muted">No source-checked action items were found.</p>}</ReportSection>
+        <div className="mi-report-columns"><ReportSection title="Open questions" count={verifiedQuestions.length} icon={<AlertCircle />}><ItemList items={verifiedQuestions} onJump={jump} empty="No source-checked open questions were found." /></ReportSection><ReportSection title="Risks to keep in view" count={verifiedRisks.length} icon={<ShieldCheck />}><ItemList items={verifiedRisks} onJump={jump} empty="No source-checked risks were found." /></ReportSection></div>
+        {reviewItems.length > 0 && <ReportSection title="AI suggestions to review" count={reviewItems.length} icon={<AlertCircle />}><div className="mi-items">{reviewItems.map(({ kind, text, item }) => <article className="mi-report-item" key={item.id}><small className="mi-review-kind">{kind}</small><p>{text}</p><EvidenceView item={item} onJump={jump} /></article>)}</div></ReportSection>}
+        <p className="mi-report-footnote"><ShieldCheck />The main report shows source-checked items. Anything that fails a source check stays separate for review.</p>
       </div>
       <div id="mi-transcript" role="tabpanel" aria-labelledby="mi-tab-transcript" hidden={tab !== 'transcript'} className="mi-transcript"><label className="mi-search"><Search /><input aria-label="Search this transcript" type="search" placeholder="Search this transcript…" value={query} onChange={event => setQuery(event.target.value)} /></label>{segments.length ? <><div className="mi-transcript-rows">{filtered.map(segment => <div key={segment.id} ref={element => { if (element) segmentElements.current.set(segment.id, element); else segmentElements.current.delete(segment.id) }} tabIndex={-1} className={`mi-segment ${highlight.includes(segment.id) ? 'is-highlighted' : ''}`}><div className="mi-segment-meta"><span className={`mi-speaker mi-speaker-${segment.speaker ? speakers.indexOf(segment.speaker) % 4 : 0}`}>{segment.speaker ? `Speaker ${speakers.indexOf(segment.speaker) + 1}` : 'Speaker unknown'}</span>{segment.start != null && <button className="mi-timestamp" title={audioURL ? 'Play from this timestamp' : 'Load the recording to listen from this timestamp'} disabled={!audioURL} onClick={() => seek(segment.start)}>{time(segment.start)}{segment.end != null ? ` – ${time(segment.end)}` : ''}</button>}</div><p dir="auto">{segment.text}</p></div>)}</div>{!filtered.length && <p className="mi-muted mi-no-matches">No transcript passages match this search.</p>}</> : <p className="mi-raw-transcript" dir="auto">{result.transcript.raw_text || 'No speech was found in this recording.'}</p>}<p className="mi-report-footnote">Speaker labels distinguish voices; they do not identify people.</p></div>
     </>}

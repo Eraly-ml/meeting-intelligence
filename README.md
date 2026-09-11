@@ -1,8 +1,8 @@
-# AI Meeting Intelligence
+# Meeting Station
 
-A local meeting station built on Scriberr: the **Radxa Cubie A7A (6 GB, Debian 11 CLI)** records and archives meetings, while the **MacBook Air M5 (16 GB)** runs speech recognition, optional speaker diarization, Qwen3.5, verification and PDF generation.
+Meeting Station is our local meeting-intelligence product for the **Radxa Cubie A7A (6 GB, Debian 11 CLI)** and **MacBook Air M5 (16 GB)**. The Radxa records and archives meetings. The Mac runs speech recognition, optional speaker diarization, Qwen3.5, semantic source checks and PDF/CSV/JSON/calendar generation. The deployed web experience, branding, login and report workspace are a custom Meeting Station interface.
 
-The browser uploads to the Radxa through Caddy. Original audio, the queue, transcripts and JSON/CSV/PDF exports stay on the board; a disconnected Mac leaves jobs saved for later processing. The browser uses a station token stored only for its tab session. Inference uses installed models and local assets; full WAN-disconnected hardware acceptance remains to be verified. Online meetings use the meeting platform's internet connection.
+The browser uploads to the Radxa through Caddy. Original audio, the queue, transcripts and JSON/CSV/PDF/ICS exports stay on the board; a disconnected Mac leaves jobs saved for later processing. The browser uses a station token stored only for its tab session. Inference uses installed models and local assets; full WAN-disconnected hardware acceptance remains to be verified. Online meetings use the meeting platform's internet connection.
 
 - Open the deployed station at **http://192.168.8.57/meeting-intelligence** on the demo LAN. This HTTP fallback is unencrypted; HTTPS remains available at `https://radxa-cubie-a7a.local/meeting-intelligence` with the station certificate trusted.
 - **Join online meeting** opens an isolated browser on the Radxa. Complete joining as a disclosed recording participant, then start recording incoming audio. Stopping queues local Mac transcription and report generation. See [meeting browser setup and limits](deploy/meeting-browser/README.md).
@@ -16,7 +16,10 @@ Carelink's application/configuration snapshot is saved and verified privately un
 
 The `macos/` client (macOS 15+) and `backend/` hub are earlier native-client prototypes and are not the deployed station pipeline. Use `station/` plus `mac-worker/` for this hardware layout.
 
-This fork remains under MIT and retains the Scriberr copyright and history. The original upstream README follows; its general installation instructions and optional cloud/YouTube integrations do not describe the station deployment above.
+This implementation retains selected backend foundations from the open-source Scriberr repository. Its MIT copyright, license and Git history remain intact. The upstream interface is not used in station mode. The original upstream README is preserved below for attribution; its Docker, cloud and YouTube paths do not describe this deployment.
+
+<details>
+<summary>Original Scriberr README and attribution</summary>
 
 ---
 
@@ -38,6 +41,8 @@ Scriberr is an open-source, and completely offline audio transcription applicati
 
 <p align="center">
 <a href='https://ko-fi.com/H2H41KQZA3' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+
+</details>
 </p>
 
 <div align="center">

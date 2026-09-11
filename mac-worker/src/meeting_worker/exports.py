@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -45,15 +47,70 @@ def export_csv(path: Path, protocol: MeetingProtocol) -> None:
             )])
 
 
+def export_ics(path: Path, protocol: MeetingProtocol) -> None:
+    """Write source-checked actions as portable RFC 5545 VTODO entries."""
+    lines = [
+        "BEGIN:VCALENDAR", "VERSION:2.0",
+        "PRODID:-//Meeting Station//Action Items//EN",
+        "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    ]
+    generated = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    priorities = {"urgent": 1, "high": 3, "medium": 5, "low": 7, "not_specified": 0}
+    for item in protocol.action_items:
+        if item.source_check != "passed" or item.review_status not in {"unreviewed", "human_confirmed"}:
+            continue
+        identity = "\0".join((protocol.metadata.title, str(protocol.metadata.meeting_date or ""), item.id, item.task))
+        uid = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24] + "@meeting-station.local"
+        details = ["Owner: " + (item.assignee or "Unassigned")]
+        if item.deadline_text:
+            details.append("Spoken deadline: " + item.deadline_text)
+        if item.evidence.quote:
+            details.append("Source: “" + item.evidence.quote + "”")
+        lines.extend([
+            "BEGIN:VTODO", "UID:" + uid, "DTSTAMP:" + generated,
+            "SUMMARY:" + _ics_escape(item.task),
+            "DESCRIPTION:" + _ics_escape("\n".join(details)),
+            "PRIORITY:" + str(priorities.get(item.priority, 0)),
+            "STATUS:NEEDS-ACTION",
+        ])
+        if item.deadline_date:
+            lines.append("DUE;VALUE=DATE:" + item.deadline_date.strftime("%Y%m%d"))
+        lines.append("END:VTODO")
+    lines.append("END:VCALENDAR")
+    path.write_bytes(("\r\n".join(_ics_fold(line) for line in lines) + "\r\n").encode("utf-8"))
+
+
+def _ics_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace(";", "\\;").replace(",", "\\,")
+
+
+def _ics_fold(line: str) -> str:
+    """Fold a content line at 75 UTF-8 octets without splitting a character."""
+    chunks, current, limit = [], "", 75
+    for character in line:
+        if current and len((current + character).encode("utf-8")) > limit:
+            chunks.append(current)
+            current, limit = character, 74
+        else:
+            current += character
+    chunks.append(current)
+    return "\r\n ".join(chunks)
+
+
 def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = None) -> None:
     font_name = _pdf_font(font_path)
     styles = getSampleStyleSheet()
     for style in styles.byName.values():
         style.fontName = font_name
     story = [Paragraph(escape(protocol.metadata.title), styles["Title"]), Spacer(1, 12)]
+    if protocol.metadata.meeting_date:
+        story.append(Paragraph("Meeting date: " + protocol.metadata.meeting_date.isoformat(), styles["BodyText"]))
+    if protocol.metadata.timezone:
+        story.append(Paragraph("Timezone: " + escape(protocol.metadata.timezone), styles["BodyText"]))
     sections = [
         ("Executive summary", protocol.executive_summary),
         ("Decisions", [_qualified(item.text, item) for item in protocol.decisions]),
+        ("Topics and key points", [_qualified(item.title + ": " + item.text, item) for item in protocol.topics]),
         ("Open questions", [_qualified(item.text, item) for item in protocol.open_questions]),
         ("Risks", [_qualified(item.text, item) for item in protocol.risks]),
     ]
@@ -66,7 +123,7 @@ def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = No
     rows.extend([
         [Paragraph(escape(item.assignee or "—"), styles["BodyText"]),
          Paragraph(escape(_qualified(item.task, item)), styles["BodyText"]),
-         Paragraph(escape(item.deadline_text or "—"), styles["BodyText"]), item.priority]
+         Paragraph(escape(item.deadline_text or (item.deadline_date.isoformat() if item.deadline_date else "—")), styles["BodyText"]), item.priority]
         for item in protocol.action_items
     ])
     table = Table(rows, repeatRows=1, colWidths=[90, 250, 90, 70])
@@ -79,9 +136,13 @@ def export_pdf(path: Path, protocol: MeetingProtocol, font_path: str | None = No
     story.append(table)
     story.append(Spacer(1, 12))
     story.append(Paragraph("Evidence references", styles["Heading2"]))
-    for item in protocol.decisions + protocol.action_items:
+    for index, source in enumerate(protocol.executive_summary_sources, 1):
+        story.append(Paragraph(escape(f"Summary {index} → {source.item_id}"), styles["BodyText"]))
+    for item in protocol.decisions + protocol.topics + protocol.open_questions + protocol.action_items + protocol.risks:
         quote = item.evidence.quote or "No verified source excerpt"
         citation = "{}: {} — {}".format(item.id, ", ".join(item.evidence.segment_ids) or "No references", quote)
+        if item.evidence.start is not None and item.evidence.end is not None:
+            citation += " [{:.2f}–{:.2f}s]".format(item.evidence.start, item.evidence.end)
         story.append(Paragraph(escape(citation), styles["BodyText"]))
     SimpleDocTemplate(str(path), pagesize=A4, leftMargin=36, rightMargin=36).build(story)
 

@@ -122,7 +122,7 @@ class Worker:
                     raise WorkerUnavailable("Mac worker result failed validation; original audio remains archived", "ENGINE_INVALID_RESULT")
                 directory = self.store.exports / job_id
                 directory.mkdir(exist_ok=True, mode=0o700)
-                for format_name in ("json", "csv", "pdf"):
+                for format_name in ("json", "csv", "pdf", "ics"):
                     await self.client.export(job_id, format_name, directory / ("meeting." + format_name))
                 self.store.complete(job_id, result)
         except asyncio.CancelledError:
