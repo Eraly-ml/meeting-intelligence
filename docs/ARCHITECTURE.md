@@ -70,7 +70,7 @@ The UI polls status and archive metadata. Audio is fetched with authentication o
 
 ## Local models and what readiness means
 
-The provisioned baseline uses multilingual **whisper.cpp base** for ASR and **Qwen3.5 4B** through local Ollama. Base is a small integration baseline, not an established quality choice for Kazakh, Russian, mixed-language speech or overlapping voices. Optional Shyngys, MLX Distil-Whisper and GigaAM adapters require their own installed libraries and local model directories. They have not been benchmarked against the baseline in this deployment.
+The provisioned profile uses multilingual **whisper.cpp large-v3-turbo q5** for ASR and **Qwen3.5 4B** through local Ollama. Turbo corrected a name error from base on the local synthetic fixture, with about 829 MiB peak ASR process footprint; base remains a smaller fallback. This does not establish accuracy for Kazakh, Russian, mixed-language speech or overlapping voices. Optional Shyngys, MLX Distil-Whisper and GigaAM adapters require their own installed libraries and local model directories. They have not been benchmarked in this deployment.
 
 Diarization uses local Sherpa ONNX segmentation and speaker-embedding models when provisioned and requested. It distinguishes anonymous voices; it cannot identify participants by name. Uncertain overlapping spans remain unassigned. The Mac serializes heavy jobs to fit its 16 GB memory; performance and accuracy must be measured on representative meetings.
 

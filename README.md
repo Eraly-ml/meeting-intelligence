@@ -9,7 +9,7 @@ The browser uploads to the Radxa over its existing Caddy HTTPS setup. Original a
 - [Radxa station bridge](station/README.md) and [Mac inference worker](mac-worker/README.md).
 - Build the appliance with `scripts/build-station.sh`: `VITE_MEETING_STATION=true` selects the station UI; `MI_STATION_MODE=true` keeps Go from starting upstream transcription/download features.
 
-This deployment uses systemd and the existing Caddy service; Docker is not installed on the board. The baseline ASR model is multilingual whisper.cpp base, with optional higher-quality candidates available for benchmarking. No multilingual accuracy or meeting throughput is claimed from the model choice alone.
+This deployment uses systemd and the existing Caddy service; Docker is not installed on the board. ASR uses multilingual whisper.cpp large-v3-turbo q5, selected after it corrected a name error from base in a local comparison. Base remains a smaller fallback. See [measured validation and limits](docs/VALIDATION.md); multilingual accuracy and meeting throughput still need representative tests.
 
 Carelink's application/configuration snapshot is saved and verified privately under `backups/carelink-20260911/` on this Mac. Its original board files are retained, and `deploy/radxa/restore-carelink.sh` restores the previous service/routing configuration. The snapshot is not a disk image. Backups, credentials, local runtime state and model files are excluded from Git.
 
@@ -395,4 +395,3 @@ This project was developed using AI agents as pair programmer. It was NOT vibe c
 ## Donating
 
 <a href='https://ko-fi.com/H2H41KQZA3' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
-

@@ -73,7 +73,7 @@ The provisioned launcher applies `deploy/mac/inference-local.sb`: the worker and
 
 The Mac configuration uses a private worker token, a LAN bind address for port 8765, local ffmpeg/Whisper/ONNX paths, and `MI_OLLAMA_URL=http://127.0.0.1:11434`. Ollama uses `OLLAMA_NO_CLOUD=1`, one parallel request and one loaded model. Runtime model downloads are disabled. Keep the Mac awake while processing; the board retains queued sources if the Mac sleeps or disconnects.
 
-The initial ASR model is multilingual whisper.cpp base. Qwen3.5 4B runs locally on the M5. Optional larger ASR profiles are available in code but are not a measured quality or latency improvement until compared on this hardware. Speaker separation is available only when the local diarization dependencies and models are present.
+The selected ASR model is multilingual whisper.cpp large-v3-turbo q5 at `models/whisper/ggml-large-v3-turbo-q5_0.bin`. Base remains downloaded as a smaller fallback. Turbo corrected a name error in the local comparison; see [validation](VALIDATION.md) for timings and limits. Qwen3.5 4B runs locally on the M5. Other optional ASR profiles still need comparison on this hardware. Speaker separation is available only when the local diarization dependencies and models are present.
 
 ## Board installation and configuration
 

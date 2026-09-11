@@ -47,6 +47,25 @@ The MP3 and M4A encodings of the same fixture also decoded and produced five
 timestamped Whisper segments. No real microphone or system-meeting audio was
 captured for these tests.
 
+A subsequent comparison used the identical source and CLI options:
+
+| Model | ASR wall time | Peak process footprint | Name in both mentions |
+|---|---:|---:|---|
+| Multilingual base | 0.35 s | 361 MiB | Timma |
+| Large-v3-turbo q5 | 1.20 s | 829 MiB | Timur |
+
+Both processes reported zero swaps. These are ASR-only measurements on one
+clean synthetic English recording. Turbo q5 is now selected on the M5; base
+remains available locally. The 547.4 MiB model matched official SHA1
+`e050f7970618a659205450ad97eb95a18d69c9ee` from the
+[whisper.cpp model manifest](https://github.com/ggml-org/whisper.cpp/blob/master/models/README.md).
+
+After activating turbo, a fresh browser upload completed the full station-to-Mac
+pipeline and cached exports on the board in **21.752 seconds**. The five-segment
+transcript and final task both retained **Timur**, with **Monday** as the deadline
+and a passing source check. Cache/model-output differences mean this single run
+does not establish a pipeline speed improvement over the earlier base runs.
+
 Actual Metal inference also completed under `deploy/mac/inference-local.sb`.
 Separate connection probes allowed this Mac's loopback/interface addresses,
 blocked direct connections to the Radxa and a public IP, and allowed a Radxa
