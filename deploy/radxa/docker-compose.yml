@@ -1,0 +1,20 @@
+services:
+  meeting-ui:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - meeting_data:/app/data
+      - whisper_env:/app/whisperx-env
+    environment:
+      APP_ENV: production
+      ALLOWED_ORIGINS: http://radxa.local:8080,http://localhost:8080
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    restart: unless-stopped
+
+volumes:
+  meeting_data:
+  whisper_env:
