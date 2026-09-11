@@ -76,6 +76,14 @@ export interface Capabilities {
   }
 }
 export interface WorkerConfig { token: string }
+export interface BrowserStatus {
+  available: boolean
+  state: 'ready' | 'opened' | 'unavailable'
+  platform: 'meet' | 'zoom' | 'teams' | null
+  message: string
+  active_recording_id: string | null
+  recordings: Array<{ id: string; state: 'recording' | 'stopped' | 'interrupted'; bytes: number; error?: string | null }>
+}
 
 export class APIError extends Error {
   status: number
@@ -118,6 +126,17 @@ export const cancelJob = (config: WorkerConfig, id: string) => json<JobRecord>(c
 export const stopRecording = (config: WorkerConfig, id: string) => json<JobRecord>(config, `/v1/recordings/${encodeURIComponent(id)}/stop`, { method: 'POST' })
 export const startRecording = (config: WorkerConfig, title: string, languageMode: string, diarization: boolean) => json<JobRecord>(config, '/v1/recordings/start', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, language_mode: languageMode, diarization }),
+})
+export const browserStatus = (config: WorkerConfig, signal?: AbortSignal) => json<BrowserStatus>(config, '/v1/browser/status', { signal })
+export const openMeetingBrowser = (config: WorkerConfig, url: string) => json<BrowserStatus>(config, '/v1/browser/open', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }),
+})
+export const browserSession = (config: WorkerConfig) => json<{ viewer_path: string; expires_in: number }>(config, '/v1/browser/session', { method: 'POST' })
+export const startBrowserRecording = (config: WorkerConfig, input: { title: string; language_mode: string; output_language: string; diarization: boolean }) => json<JobRecord>(config, '/v1/browser/recordings/start', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+})
+export const stopBrowserRecording = (config: WorkerConfig, id: string) => json<JobRecord>(config, `/v1/browser/recordings/${encodeURIComponent(id)}/stop`, {
+  method: 'POST', signal: AbortSignal.timeout(120000),
 })
 export function submitMeeting(config: WorkerConfig, input: {
   id: string; title: string; languageMode: string; outputLanguage: string; diarization: boolean; file?: File; transcript?: string

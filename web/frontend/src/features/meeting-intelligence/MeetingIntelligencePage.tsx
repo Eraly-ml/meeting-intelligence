@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { APIError, capabilities, cancelJob, createID, downloadExport, getResult, listJobs, loadAudio, retryJob, startRecording, stopRecording, submitMeeting, type Capabilities, type JobRecord, type JobStage, type MeetingResult, type ProtocolItem, type SourcedItem, type WorkerConfig } from './api'
 import './meeting-intelligence.css'
+import { MeetingBrowserPanel } from './MeetingBrowserPanel'
 
 const tokenKey = 'mi.stationToken'
 const selectionKey = 'mi.selectedJob'
@@ -119,7 +120,7 @@ export function MeetingIntelligencePage() {
   return <Layout><div className="mi-page">
     <header className="mi-heading">
       <div><div className="mi-eyebrow">YOUR LOCAL MEETING STATION</div><h1>Conversations, with a next step.</h1><p>A shared archive. Clear decisions. Everything on your devices.</p></div>
-      <div className="mi-heading-actions"><Button variant="outline" onClick={() => setRecordOpen(true)} disabled={!connected || !caps?.station.recording_available || Boolean(activeId)} title={!caps?.station.recording_available ? 'A microphone must be configured on the station' : undefined}><Mic />Record meeting</Button><Button onClick={() => setUploadOpen(true)} disabled={!connected}><Upload />Upload audio</Button></div>
+      <div className="mi-heading-actions"><Button variant="outline" onClick={() => setRecordOpen(true)} disabled={!connected || !caps?.station.recording_available || Boolean(activeId)} title={!caps?.station.recording_available ? 'A microphone must be configured on the station' : undefined}><Mic />Record microphone</Button><Button onClick={() => setUploadOpen(true)} disabled={!connected}><Upload />Upload audio</Button></div>
     </header>
 
     <div className="mi-station-strip">
@@ -133,6 +134,8 @@ export function MeetingIntelligencePage() {
     {connectionError && <div className="mi-notice mi-warning" role="status"><AlertCircle /><span>{connectionError} {token ? 'Reconnecting automatically.' : ''}</span><Button variant="ghost" size="sm" onClick={token ? refresh : () => setPairOpen(true)}>{token ? 'Retry' : 'Connect'}</Button></div>}
     {error && <div className="mi-notice mi-warning" role="alert"><AlertCircle /><span>{error}</span><button className="mi-icon-button" aria-label="Dismiss error" onClick={() => setError('')}><X /></button></div>}
     {activeId && <div className="mi-recording-banner"><span className="mi-recording-dot" /><div><strong>{activeJob ? title(activeJob) : 'Recording on the station'}</strong><small>Audio is being saved on your Radxa.</small></div><RecordingClock started={activeJob?.created_at} /><Button variant="outline" onClick={() => void perform(() => stopRecording(config, activeId))} disabled={actionBusy || !connected}><Square />Stop &amp; process</Button></div>}
+
+    <MeetingBrowserPanel config={config} connected={connected} jobs={jobs} onCreated={acceptJob} diarizationAvailable={diarizationAvailable} />
 
     <div className="mi-workspace">
       <aside className="mi-archive" aria-label="Meeting archive">
@@ -148,7 +151,7 @@ export function MeetingIntelligencePage() {
         {selectedJob ? <MeetingDetail key={selectedJob.id} job={selectedJob} config={config} connected={connected} onError={setError} onRetry={() => void perform(() => retryJob(config, selectedJob.id))} onCancel={() => void perform(() => cancelJob(config, selectedJob.id))} busy={actionBusy} /> : <div className="mi-welcome"><div className="mi-welcome-art" aria-hidden="true"><span className="mi-art-orbit" /><div className="mi-art-paper"><AudioLines /><i /><i /><i /><span><Check /></span></div></div><div className="mi-eyebrow">FROM CONVERSATION TO CLARITY</div><h2>Good meetings don’t end<br />when the call does.</h2><p>Bring a recording. Leave with a transcript,<br />the decisions, and what happens next.</p><Button onClick={() => connected ? setUploadOpen(true) : setPairOpen(true)}>{connected ? <Upload /> : <LockKeyhole />}{connected ? 'Upload your first recording' : 'Connect to your station'}</Button><small>MP3, WAV, M4A, WebM or CAF</small></div>}
       </section>
     </div>
-    <footer className="mi-footer"><span>Meeting Intelligence <span>/</span> Powered by your devices</span><span><LockKeyhole />Audio and AI stay on your network</span></footer>
+    <footer className="mi-footer"><span>Meeting Intelligence <span>/</span> Powered by your devices</span><span><LockKeyhole />Local transcription and a private archive</span></footer>
 
     <PairDialog open={pairOpen} onOpenChange={setPairOpen} connected={connected} onDisconnect={disconnect} onConnect={(value, station) => { saveSession(tokenKey, value); setToken(value); setCaps(station); setConnected(true); setConnectionError(''); setPairOpen(false); refresh() }} />
     <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} config={config} maxBytes={caps?.station.max_upload_bytes} diarizationAvailable={diarizationAvailable} onCreated={acceptJob} />

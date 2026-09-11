@@ -37,12 +37,20 @@ class Settings:
     alsa_device: str = "default"
     bind_host: str = "127.0.0.1"
     bind_port: int = 8766
+    browser_url: str = "http://127.0.0.1:8770"
+    browser_token: str = ""
+    browser_public_prefix: str = "/api/meeting-worker"
 
     def __post_init__(self):
         for name, token in (("MI_STATION_TOKEN", self.token), ("MI_STATION_WORKER_TOKEN", self.worker_token)):
             if len(token) < 16 or token != token.strip():
                 raise ValueError(name + " must contain at least 16 characters, with no outer whitespace")
         object.__setattr__(self, "worker_url", private_url(self.worker_url))
+        browser = urlsplit(private_url(self.browser_url))
+        if browser.hostname != "127.0.0.1" or browser.scheme != "http":
+            raise ValueError("Browser controller must use HTTP on 127.0.0.1")
+        if self.browser_token and (len(self.browser_token) < 16 or self.browser_token != self.browser_token.strip()):
+            raise ValueError("MI_STATION_BROWSER_TOKEN must contain at least 16 characters")
         if self.max_upload_bytes < 1 or self.poll_seconds <= 0 or self.request_timeout <= 0:
             raise ValueError("Upload size, polling interval and request timeout must be positive")
 
@@ -54,4 +62,6 @@ class Settings:
                    max_upload_bytes=int(os.getenv("MI_STATION_MAX_UPLOAD_BYTES", str(512 * 1024 * 1024))),
                    alsa_device=os.getenv("MI_STATION_ALSA_DEVICE", "default"),
                    bind_host=os.getenv("MI_STATION_BIND_HOST", "127.0.0.1"),
-                   bind_port=int(os.getenv("MI_STATION_BIND_PORT", "8766")))
+                   bind_port=int(os.getenv("MI_STATION_BIND_PORT", "8766")),
+                   browser_url=os.getenv("MI_STATION_BROWSER_URL", "http://127.0.0.1:8770"),
+                   browser_token=os.getenv("MI_STATION_BROWSER_TOKEN", ""))

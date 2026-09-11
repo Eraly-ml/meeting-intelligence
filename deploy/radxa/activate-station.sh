@@ -19,6 +19,9 @@ test -f "$snapshot/complete"
 caddy validate --config /etc/meeting-intelligence/Caddyfile.station --adapter caddyfile
 systemctl daemon-reload
 rollback() {
+    if systemctl cat meeting-browser.service >/dev/null 2>&1; then
+        systemctl disable --now meeting-browser.service || true
+    fi
     cp -a "$snapshot/Caddyfile" /etc/caddy/Caddyfile
     systemctl reload caddy.service || true
     if [ "$(cat "$snapshot/gateway.active")" = active ]; then
@@ -48,4 +51,9 @@ install -o root -g root -m 644 /etc/meeting-intelligence/Caddyfile.station /etc/
 systemctl reload caddy.service
 systemctl enable meeting-station.service scriberr-station.service
 trap - ERR
+if [ -f /opt/meeting-browser/provisioned ] && \
+   [ -f /opt/meeting-browser/browser.env ] && \
+   systemctl cat meeting-browser.service >/dev/null 2>&1; then
+    systemctl enable --now meeting-browser.service
+fi
 printf '%s\n' 'Meeting Station active. Carelink code, data, firewall and SSH configuration are preserved.'

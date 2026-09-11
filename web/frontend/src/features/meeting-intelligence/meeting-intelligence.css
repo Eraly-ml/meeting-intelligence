@@ -192,6 +192,30 @@
 .mi-footer > span { display: flex; align-items: center; gap: 6px; }
 .mi-footer svg { width: 10px; height: 10px; }
 .mi-footer span > span { margin: 0 3px; opacity: .5; }
+.mi-browser-panel { border: 1px solid var(--mi-border); border-radius: 13px; background: var(--mi-bg); margin-bottom: 23px; overflow: hidden; }
+.mi-browser-heading { display: flex; gap: 14px; align-items: center; padding: 20px 23px; }
+.mi-browser-icon { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; background: var(--mi-soft); color: var(--mi-accent); }
+.mi-browser-icon svg { width: 20px; height: 20px; }
+.mi-browser-heading h2 { font-size: 15px; font-weight: 550; letter-spacing: -.3px; }
+.mi-browser-heading p { font-size: 11px; color: var(--mi-muted); line-height: 1.7; margin-top: 5px; }
+.mi-browser-heading > button { margin-left: auto; flex-shrink: 0; font-size: 11px; }
+.mi-browser-controls { padding: 22px; border-top: 1px solid var(--mi-border); }
+.mi-browser-link { display: flex; gap: 10px; }
+.mi-browser-link input { min-width: 0; }
+.mi-browser-link button { flex-shrink: 0; font-size: 11px; }
+.mi-browser-instructions { padding: 13px 16px; background: var(--mi-soft); border-radius: 9px; margin-top: 16px; font-size: 11px; line-height: 1.8; }
+.mi-browser-instructions strong { font-weight: 550; }
+.mi-browser-instructions p { color: var(--mi-muted); }
+.mi-browser-viewer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.mi-browser-viewer-actions span, .mi-browser-record-actions > span { color: var(--mi-muted); font-size: 10px; line-height: 1.8; }
+.mi-browser-viewer { display: block; width: 100%; height: min(68vw, 710px); min-height: 300px; border: 1px solid var(--mi-border); border-radius: 9px; background: #202322; }
+.mi-browser-record-options { padding-top: 18px; margin-top: 17px; border-top: 1px solid var(--mi-border); }
+.mi-browser-record-options input:not([type=checkbox]) { margin-top: 7px; }
+.mi-browser-record-options .mi-checkbox { align-self: center; }
+.mi-browser-record-actions { display: flex; align-items: center; gap: 18px; margin-top: 6px; }
+.mi-browser-record-actions button { flex-shrink: 0; }
+.mi-browser-panel > .mi-recording-banner, .mi-browser-panel > .mi-notice { margin: 0 20px 18px; }
+@media (max-width: 700px) { .mi-browser-heading { flex-wrap: wrap; padding: 16px; } .mi-browser-heading > div:nth-child(2) { flex: 1; min-width: 180px; } .mi-browser-heading > button { width: 100%; } .mi-browser-controls { padding: 16px; } .mi-browser-link, .mi-browser-record-actions { flex-direction: column; align-items: stretch; } .mi-browser-record-options .mi-form-columns { grid-template-columns: 1fr; } .mi-browser-viewer { min-height: 370px; } }
 .mi-dialog { --mi-accent: #14776b; --mi-soft: #edf7f3; --mi-border: #e5e9e6; --mi-bg: #fff; --mi-muted: #75827c; --mi-ink: #243d35; max-height: calc(100dvh - 32px); overflow: auto; border-radius: 17px; padding: 28px; color: var(--mi-ink); }
 .mi-modal-icon { width: 39px; height: 39px; border-radius: 12px; color: var(--mi-accent); background: var(--mi-soft); display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
 .mi-modal-icon svg { width: 19px; height: 19px; }

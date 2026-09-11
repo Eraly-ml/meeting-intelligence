@@ -2,9 +2,10 @@
 
 A local meeting station built on Scriberr: the **Radxa Cubie A7A (6 GB, Debian 11 CLI)** records and archives meetings, while the **MacBook Air M5 (16 GB)** runs speech recognition, optional speaker diarization, Qwen3.5, verification and PDF generation.
 
-The browser uploads to the Radxa over its existing Caddy HTTPS setup. Original audio, the queue, transcripts and JSON/CSV/PDF exports stay on the board; a disconnected Mac leaves jobs saved for later processing. The browser uses a station token stored only for its tab session. Runtime uses installed models and local assets; full WAN-disconnected hardware acceptance remains to be verified.
+The browser uploads to the Radxa through Caddy. Original audio, the queue, transcripts and JSON/CSV/PDF exports stay on the board; a disconnected Mac leaves jobs saved for later processing. The browser uses a station token stored only for its tab session. Inference uses installed models and local assets; full WAN-disconnected hardware acceptance remains to be verified. Online meetings use the meeting platform's internet connection.
 
-- Open the deployed station at `https://radxa-cubie-a7a.local/meeting-intelligence`.
+- Open the deployed station at **http://192.168.8.57/meeting-intelligence** on the demo LAN. This HTTP fallback is unencrypted; HTTPS remains available at `https://radxa-cubie-a7a.local/meeting-intelligence` with the station certificate trusted.
+- **Join online meeting** opens an isolated browser on the Radxa. Complete joining as a disclosed recording participant, then start recording incoming audio. Stopping queues local Mac transcription and report generation. See [meeting browser setup and limits](deploy/meeting-browser/README.md).
 - [Architecture](docs/ARCHITECTURE.md) and [deployment, validation and Carelink rollback](docs/RUNBOOK.md).
 - [Radxa station bridge](station/README.md) and [Mac inference worker](mac-worker/README.md).
 - Build the appliance with `scripts/build-station.sh`: `VITE_MEETING_STATION=true` selects the station UI; `MI_STATION_MODE=true` keeps Go from starting upstream transcription/download features.

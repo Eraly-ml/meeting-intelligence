@@ -21,4 +21,7 @@ if [ "$(cat "$snapshot/caddy.active")" = active ]; then
     systemctl reload-or-restart caddy.service
 fi
 systemctl disable --now scriberr-station.service meeting-station.service
+if systemctl cat meeting-browser.service >/dev/null 2>&1; then
+    systemctl disable --now meeting-browser.service
+fi
 printf '%s\n' 'Carelink configuration restored. Meeting Station files and recordings remain available.'

@@ -4,10 +4,10 @@ The hackathon deployment uses a **Radxa Cubie A7A with 6 GB RAM and Debian 11 CL
 
 ```text
 Browser on the office LAN
-       │ HTTPS · existing Caddy local certificate authority
+       │ HTTP on demo LAN / HTTPS with local certificate authority
        ▼
 Radxa Cubie A7A · 192.168.8.57
-https://radxa-cubie-a7a.local
+http://192.168.8.57
        │
        ├─ /meeting-intelligence
        │      Go + embedded React UI · 127.0.0.1:8081
@@ -17,6 +17,7 @@ https://radxa-cubie-a7a.local
               Python station bridge · 127.0.0.1:8766
               station token authentication
               ├─ USB/ALSA microphone → complete WAV recording
+              ├─ isolated Chromium → meeting playback → complete WAV
               ├─ audio/text uploads → original sources on disk
               ├─ SQLite archive and persistent forwarding queue
               └─ cached transcript, protocol, JSON, CSV and PDF
@@ -44,6 +45,7 @@ The browser sends requests to its own station origin. It does not need the Mac a
 | Existing Caddy | Radxa | HTTPS, existing hostname and local certificate authority, same-origin routing |
 | Go + React | Radxa | Login, meeting interface, archive navigation, playback and downloads |
 | Station bridge | Radxa | Original recordings, durable queue, board microphone capture, cached results and exports |
+| Isolated Chromium + PulseAudio | Radxa | Online meeting participation and capture of incoming meeting sound |
 | Mac worker | Mac | Audio normalization, ASR, optional diarization, Qwen orchestration, verification, export generation |
 | Ollama | Mac loopback | Local Qwen inference only |
 
@@ -53,7 +55,11 @@ On the board, the application is installed under `/opt/meeting-intelligence`; pr
 
 ## Recording and queue behavior
 
-Station recording uses the microphone attached to the Radxa through ALSA, so a browser's microphone permission and secure-context support are not part of this capture path. The station reports whether a capture device is available. The recording begins only on an explicit start action, saves the full WAV on the board, and is sent for inference after stopping. Recording duration is bounded by the configured upload size. Live ASR during this board recording is not implemented.
+The **Record microphone** action uses the microphone attached to the Radxa through ALSA, so the Mac browser's microphone permission and secure-context support are not part of this capture path. The station reports whether a capture device is available. Recording begins only on an explicit start action, saves the full WAV on the board, and is sent for inference after stopping. Recording duration is bounded by the configured upload size. Live ASR during board recording is not implemented.
+
+**Join online meeting** opens a real Chromium browser inside a separate Debian 12 filesystem on the Radxa. The host remains Debian 11. A dedicated non-root service owns this browser, its profile and a PulseAudio playback sink; a separate silent microphone prevents audio feedback. The authenticated station page can display and control that browser through a local noVNC proxy. Opening a link is not evidence of meeting admission: a person must complete the platform's join flow and any host admission. Google Meet is the primary demo target; Zoom and Teams browser flows depend on their own account and meeting policies. No platform bot SDK or Telegram account is required for this path.
+
+Online recording captures the PulseAudio playback monitor into a full WAV. Stop finalizes the source and imports it into the same durable station queue. The original browser recording is retained if that import fails. This initial implementation supports one browser meeting at a time and processes audio after stopping. It does not provide live transcripts or guarantee recognition accuracy. Meeting traffic uses the platform's internet services; the saved recording, transcription, diarization, LLM processing and exports stay on the Radxa and Mac.
 
 Imported MP3, WAV, M4A, WebM, CAF, OGG and FLAC files follow the same queue. The browser upload form offers MP3, WAV, M4A, WebM and CAF; the API additionally accepts OGG and FLAC. Existing text transcripts can skip ASR. Upload acknowledgement follows a flushed source file and a committed database row. A UUID idempotency key and source hash prevent replayed uploads from creating duplicate jobs.
 

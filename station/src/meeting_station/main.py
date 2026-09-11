@@ -8,6 +8,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import anyio
+import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.datastructures import UploadFile
@@ -19,6 +20,7 @@ from .models import Manifest, RecordingStart
 from .recorder import Recorder
 from .store import Store, StoreError
 from .worker import MacClient, Worker, WorkerUnavailable
+from .browser import BrowserCapture, BrowserClient, BrowserSessions, install_browser_routes
 
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".webm", ".ogg", ".caf", ".flac"}
@@ -27,17 +29,19 @@ TOO_LARGE = "Upload exceeds the station request size limit"
 
 class Boundary:
     """Authentication precedes parsing, and incoming uploads stay streamed and bounded."""
-    def __init__(self, app, token, max_upload_bytes):
+    def __init__(self, app, token, max_upload_bytes, browser_sessions=None):
         self.app = app
         self.expected = ("Bearer " + token).encode("utf-8")
         self.max_upload_bytes = max_upload_bytes
+        self.browser_sessions = browser_sessions
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
         public = scope["path"] == "/health" and scope["method"] == "GET"
-        if not public and not hmac.compare_digest(headers.get(b"authorization", b""), self.expected):
+        viewer = self.browser_sessions and self.browser_sessions.valid(scope)
+        if not public and not viewer and not hmac.compare_digest(headers.get(b"authorization", b""), self.expected):
             return await JSONResponse({"detail": "Valid station Bearer token required"}, status_code=401,
                                       headers={"WWW-Authenticate": "Bearer"})(scope, receive, send)
         multipart = scope["path"] == "/v1/jobs" and scope["method"] == "POST"
@@ -63,7 +67,7 @@ class Boundary:
         await self.app(scope, limited_receive, send)
 
 
-def create_app(settings=None, mac=None, start_worker=True):
+def create_app(settings=None, mac=None, start_worker=True, browser=None):
     settings = settings or Settings.from_env()
 
     @asynccontextmanager
@@ -79,6 +83,11 @@ def create_app(settings=None, mac=None, start_worker=True):
         store.recover()
         remote = mac or MacClient(settings)
         recorder = Recorder(store, settings)
+        app.state.browser = browser or BrowserClient(settings)
+        app.state.browser_capture = BrowserCapture(store, app.state.browser)
+        app.state.viewer = httpx.AsyncClient(base_url="http://127.0.0.1:6080", trust_env=False,
+                                            follow_redirects=False, timeout=10,
+                                            headers={"Authorization": "Bearer " + settings.browser_token})
         app.state.store, app.state.mac, app.state.recorder = store, remote, recorder
         app.state.worker = Worker(store, remote, settings)
         task = asyncio.create_task(app.state.worker.run()) if start_worker else None
@@ -91,13 +100,19 @@ def create_app(settings=None, mac=None, start_worker=True):
                     await task
             await recorder.close()
             await remote.close()
+            await app.state.browser.close()
+            await app.state.viewer.aclose()
             store.close()
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
             lock.close()
 
     app = FastAPI(title="Meeting Intelligence Station", version="0.1.0", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None)
-    app.add_middleware(Boundary, token=settings.token, max_upload_bytes=settings.max_upload_bytes)
+    browser_sessions = BrowserSessions()
+    app.state.browser_sessions = browser_sessions
+    app.add_middleware(Boundary, token=settings.token, max_upload_bytes=settings.max_upload_bytes,
+                       browser_sessions=browser_sessions)
+    install_browser_routes(app, settings, browser_sessions)
 
     @app.exception_handler(StoreError)
     async def store_error(request, exc):

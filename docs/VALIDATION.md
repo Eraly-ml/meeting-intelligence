@@ -78,6 +78,47 @@ worker registration reported a certificate-trust error; ordinary application
 flows worked, but PWA installation/offline caching was not validated. The system
 trust store was not changed.
 
+## LAN access and meeting browser
+
+The explicit `http://192.168.8.57/meeting-intelligence` address passed a fresh
+Chrome session with account login, station pairing, reload and session refresh.
+HTTPS also passed with the board CA explicitly trusted by the test client;
+its cookies retained Secure and HttpOnly. HTTP is an unencrypted demo-LAN
+fallback and does not change the Mac's system certificate trust.
+
+The isolated Radxa Chromium 152 browser started with its sandbox enabled under
+a separate UID. CDP, VNC, websockify and the controller listen only on loopback.
+Controller authentication and the relay's token/Origin checks passed. Chromium
+played a 440 Hz synthetic oscillator into its private PulseAudio sink; the
+controller finalized a 2.7015-second, 86,526-byte mono 16 kHz WAV with RMS 3100.
+This verifies browser playback capture, not remote meeting speech.
+
+The new station package passed **45 tests**, including 25 browser-route,
+authentication, recovery and controller checks in addition to the original 20.
+The deployed UI passed login, pairing, viewer rendering at 1280×800 and explicit
+viewer reconnection. The viewer cookie is HttpOnly, SameSite=Strict and scoped
+to the viewer path. It cannot authorize the job archive: that request returned
+401 without the station Bearer token.
+
+A separate synthetic speech test used the station's browser-recording API and
+played the 16.636-second fixture into the isolated PulseAudio sink. The archived
+WAV contained 17.5936 seconds including capture margins, 563,072 bytes, RMS
+4354.98 and peak amplitude 29849. Local processing completed 24.68 seconds after
+Stop, producing five segments, two anonymous speakers and cached PDF/JSON/CSV.
+The final task preserved Timur and Monday with a passing source check. This test
+also exposed an unsupported executive-summary cancellation claim and a missing
+explicit launch decision. A successful pipeline/export test is not evidence of
+complete report accuracy.
+
+The supplied Google Meet link loaded on the Radxa and accepted the disclosed
+participant name at the pre-join screen, with microphone and camera disabled.
+Google rejected two guest attempts with “You can't join this video call” and
+HTTP 403, “The caller does not have permission,” from its meeting-device
+endpoint, including a retry after the user confirmed the host was present and
+guest access was enabled. The participant was **not admitted** and
+no real meeting audio was captured. A host/account access change is still
+needed for that acceptance test. Zoom and Teams joins have not been tested.
+
 ## Carelink preservation
 
 Both private archives passed full gzip CRC and saved SHA-256 verification.

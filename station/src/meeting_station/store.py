@@ -230,4 +230,15 @@ class Store:
         with self.lock:
             interrupted = [row[0] for row in self.db.execute("SELECT id FROM jobs WHERE stage='recording'")]
         for job_id in interrupted:
-            self.finish_recording(job_id, "Station restarted during recording; available audio is archived. Retry to transcribe it")
+            if self.get(job_id)["station"].get("filename") == "meeting-browser.wav":
+                self.browser_import_pending(job_id)
+            else:
+                self.finish_recording(job_id, "Station restarted during recording; available audio is archived. Retry to transcribe it")
+
+    def browser_import_pending(self, job_id):
+        with self.transaction() as db:
+            row = self._row(db, job_id)
+            payload = json.loads(row["payload"])
+            payload.update(stage="recording", error_code="BROWSER_IMPORT_PENDING",
+                           error_message="Browser audio has not been imported. The browser retains its recording; retry Stop and archive")
+            self._write(db, row, payload)

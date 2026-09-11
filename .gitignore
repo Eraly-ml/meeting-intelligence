@@ -85,6 +85,7 @@ data/
 models/
 .env
 .local/
+.playwright-cli/
 backups/
 *.sqlite*
 macos/.swiftpm/
